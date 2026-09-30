@@ -1,0 +1,17 @@
+{
+  "_comment": "A Doom project picks its game and the release of its IWAD (Chimera's System and Version), whose IWAD is the firmware; its PWADs and DeHackEd patches come here, in the order the engine loads them (-file, then -deh).",
+  "slots": [
+    {
+      "id": "pwad",
+      "title": "PWADs and patches",
+      "min": 0,
+      "max": -1,
+      "formats": [
+        "wad",
+        "deh",
+        "bex"
+      ],
+      "help": "The mod's WADs (.wad) and DeHackEd patches (.deh, .bex), in load order - a later WAD's lumps win over an earlier's. None for the game itself."
+    }
+  ]
+}

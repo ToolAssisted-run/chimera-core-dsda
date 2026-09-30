@@ -1,0 +1,24 @@
+--- a/prboom2/src/r_patch.c
++++ b/prboom2/src/r_patch.c
+@@ -430,7 +430,10 @@
+   }
+ 
+   // work out how much memory we need to allocate for this patch's data
+-  pixelDataSize = (patch->width * patch->height + 4) & ~3;
++  // chimera: a spare column after the last, zero: a sprite's drawer can read
++  // past its last column's pixels, which would otherwise be the column table's
++  // pointers - a picture that differs with where memory lies
++  pixelDataSize = (patch->width * patch->height + patch->height + 4) & ~3;
+   columnsDataSize = sizeof(rcolumn_t) * patch->width;
+ 
+   // count the number of posts in each column
+@@ -618,7 +621,8 @@
+   composite_patch->flags = 0;
+ 
+   // work out how much memory we need to allocate for this patch's data
+-  pixelDataSize = (composite_patch->width * composite_patch->height + 4) & ~3;
++  // chimera: the same spare column (see R_ConvertPatch... above)
++  pixelDataSize = (composite_patch->width * composite_patch->height + composite_patch->height + 4) & ~3;
+   columnsDataSize = sizeof(rcolumn_t) * composite_patch->width;
+ 
+   // count the number of posts in each column

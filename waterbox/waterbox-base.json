@@ -1,0 +1,38 @@
+{
+  "coreName": "DSDA-Doom",
+  "kind": "game",
+  "author": "id Software (Doom), Raven Software (Heretic, Hexen), Digital Café (Chex Quest), the Freedoom project; PrBoom+ by entryway et al.; dsda-doom by kraflab et al.; BizHawk's DSDA core by feos and Sergio Martin; chimera port by Sergio Martin",
+  "url": "https://github.com/ToolAssisted-run/chimera-core-dsda",
+  "deterministic": true,
+  "_memory_note": "[sbrk, sealed, invisible, plain, mmap] MiB, as BizHawk's core has them (DSDA.cs WaterboxOptions): the engine's zone and its cached lumps on the heap, which grows past sbrk into mmap for the large PWADs; the picture's buffer (up to 3840x2400) in the image.",
+  "memoryLayoutMiB": [
+    64,
+    4,
+    4,
+    4,
+    2048
+  ],
+  "video": {
+    "_comment": "The engine's software renderer, as upstream's: 320x200 times the scale factor at the native aspect (shown at 4:3, as on a CRT), or BizHawk's widescreen and 4:3 resolutions pre-corrected; the live size comes from GetVideoWidth/Height and the display aspect from GetDisplayAspectX/Y.",
+    "width": 3840,
+    "height": 2400,
+    "virtualWidth": 320,
+    "virtualHeight": 240,
+    "vsyncNumerator": 35,
+    "vsyncDenominator": 1,
+    "getBgra": "GetVideoBgra"
+  },
+  "audio": {
+    "_comment": "The engine's own mixer (its sound effects and the OPL synthesizer's music), 1/35 s of it each step at 44100 Hz: 1260 samples.",
+    "rate": 44100,
+    "samplesPerFrame": 4096,
+    "channels": 2,
+    "get": "GetAudio"
+  },
+  "lag": {
+    "inputWasRead": "InputWasRead"
+  },
+  "input": {
+    "_comment": "BizHawk's DSDA controller (DSDA.Controller.cs), its game's: per player, four players, the run, strafe and turn speed axes (the turn's fraction, longtics'), the weapon, the mouse's run and turn, the Raven games' look, fly and artifact; then the buttons - fire, use, the movement keys (turning with Strafe held is strafe50), the weapons, the Raven games' inventory, look and fly, Hexen's jump and end player; then the machine's: Change Gamma, the automap's controls, the walking camera. A player not present has their inputs inactive (IsButtonActive, IsAxisActive)."
+  }
+}

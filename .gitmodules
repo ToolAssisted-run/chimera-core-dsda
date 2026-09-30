@@ -1,0 +1,6 @@
+[submodule "extern/dsda-doom"]
+	path = extern/dsda-doom
+	url = https://github.com/kraflab/dsda-doom.git
+[submodule "extern/zlib"]
+	path = extern/zlib
+	url = https://github.com/madler/zlib.git

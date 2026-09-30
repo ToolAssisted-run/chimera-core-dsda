@@ -1,0 +1,156 @@
+{
+  "_comment": [
+    "BizHawk's default bindings for its DSDA core's controller (Assets/defctrl.json): WASD, the mouse to fire and to turn and run, E and Q to turn, the number keys for the weapons, the Raven games' inventory, look and fly keys, Tab and the keypad for the automap, F11 for the gamma. Each game's controller has them as far as it has the button."
+  ],
+  "AllTrollers": {
+    "Doom Controller": {
+      "P1 Fire": "WMouse L",
+      "P1 Use": "Space",
+      "P1 Forward": "W",
+      "P1 Backward": "S",
+      "P1 Turn Left": "E",
+      "P1 Turn Right": "Q",
+      "P1 Strafe Left": "A",
+      "P1 Strafe Right": "D",
+      "P1 Weapon Select 1": "Number1",
+      "P1 Weapon Select 2": "Number2",
+      "P1 Weapon Select 3": "Number3",
+      "P1 Weapon Select 4": "Number4",
+      "P1 Weapon Select 5": "Number5",
+      "P1 Weapon Select 6": "Number6",
+      "P1 Weapon Select 7": "Number7",
+      "Change Gamma": "F11",
+      "Automap Toggle": "Tab",
+      "Automap +": "KeypadAdd",
+      "Automap -": "KeypadSubtract",
+      "Automap Full/Zoom": "Keypad0",
+      "Automap Follow": "F",
+      "Automap Up": "Up",
+      "Automap Down": "Down",
+      "Automap Right": "Right",
+      "Automap Left": "Left",
+      "Automap Grid": "G",
+      "Automap Mark": "M",
+      "Automap Clear Marks": "C"
+    },
+    "Heretic Controller": {
+      "P1 Fire": "WMouse L",
+      "P1 Use": "Space",
+      "P1 Forward": "W",
+      "P1 Backward": "S",
+      "P1 Turn Left": "E",
+      "P1 Turn Right": "Q",
+      "P1 Strafe Left": "A",
+      "P1 Strafe Right": "D",
+      "P1 Weapon Select 1": "Number1",
+      "P1 Weapon Select 2": "Number2",
+      "P1 Weapon Select 3": "Number3",
+      "P1 Weapon Select 4": "Number4",
+      "P1 Weapon Select 5": "Number5",
+      "P1 Weapon Select 6": "Number6",
+      "P1 Weapon Select 7": "Number7",
+      "P1 Inventory Left": "LeftBracket",
+      "P1 Inventory Right": "RightBracket",
+      "P1 Use Artifact": "Enter",
+      "P1 Look Up": "PageDown",
+      "P1 Look Down": "Delete",
+      "P1 Look Center": "End",
+      "P1 Fly Up": "PageUp",
+      "P1 Fly Down": "Insert",
+      "P1 Fly Center": "Home",
+      "Change Gamma": "F11",
+      "Automap Toggle": "Tab",
+      "Automap +": "KeypadAdd",
+      "Automap -": "KeypadSubtract",
+      "Automap Full/Zoom": "Keypad0",
+      "Automap Follow": "F",
+      "Automap Up": "Up",
+      "Automap Down": "Down",
+      "Automap Right": "Right",
+      "Automap Left": "Left",
+      "Automap Grid": "G",
+      "Automap Mark": "M",
+      "Automap Clear Marks": "C"
+    },
+    "Hexen Controller": {
+      "P1 Fire": "WMouse L",
+      "P1 Use": "Space",
+      "P1 Forward": "W",
+      "P1 Backward": "S",
+      "P1 Turn Left": "E",
+      "P1 Turn Right": "Q",
+      "P1 Strafe Left": "A",
+      "P1 Strafe Right": "D",
+      "P1 Weapon Select 1": "Number1",
+      "P1 Weapon Select 2": "Number2",
+      "P1 Weapon Select 3": "Number3",
+      "P1 Weapon Select 4": "Number4",
+      "P1 Inventory Left": "LeftBracket",
+      "P1 Inventory Right": "RightBracket",
+      "P1 Use Artifact": "Enter",
+      "P1 Look Up": "PageDown",
+      "P1 Look Down": "Delete",
+      "P1 Look Center": "End",
+      "P1 Fly Up": "PageUp",
+      "P1 Fly Down": "Insert",
+      "P1 Fly Center": "Home",
+      "P1 Jump": "Slash",
+      "Change Gamma": "F11",
+      "Automap Toggle": "Tab",
+      "Automap +": "KeypadAdd",
+      "Automap -": "KeypadSubtract",
+      "Automap Full/Zoom": "Keypad0",
+      "Automap Follow": "F",
+      "Automap Up": "Up",
+      "Automap Down": "Down",
+      "Automap Right": "Right",
+      "Automap Left": "Left",
+      "Automap Grid": "G",
+      "Automap Mark": "M",
+      "Automap Clear Marks": "C"
+    }
+  },
+  "AllTrollersAutoFire": {
+    "Doom Controller": {},
+    "Heretic Controller": {},
+    "Hexen Controller": {}
+  },
+  "AllTrollersAnalog": {
+    "Doom Controller": {
+      "P1 Mouse Run": {
+        "Value": "RMouse Y",
+        "Mult": 1.0,
+        "Deadzone": 0.0
+      },
+      "P1 Mouse Turn": {
+        "Value": "RMouse X",
+        "Mult": 1.0,
+        "Deadzone": 0.0
+      }
+    },
+    "Heretic Controller": {
+      "P1 Mouse Run": {
+        "Value": "RMouse Y",
+        "Mult": 1.0,
+        "Deadzone": 0.0
+      },
+      "P1 Mouse Turn": {
+        "Value": "RMouse X",
+        "Mult": 1.0,
+        "Deadzone": 0.0
+      }
+    },
+    "Hexen Controller": {
+      "P1 Mouse Run": {
+        "Value": "RMouse Y",
+        "Mult": 1.0,
+        "Deadzone": 0.0
+      },
+      "P1 Mouse Turn": {
+        "Value": "RMouse X",
+        "Mult": 1.0,
+        "Deadzone": 0.0
+      }
+    }
+  }
+}

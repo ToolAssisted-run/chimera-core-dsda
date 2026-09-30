@@ -1,0 +1,40 @@
+diff --git a/prboom2/src/d_client.c b/prboom2/src/d_client.c
+index d8c6ff9fd..45914ab69 100644
+--- a/prboom2/src/d_client.c
++++ b/prboom2/src/d_client.c
+@@ -70,16 +70,12 @@ int solo_net = 0;
+ 
+ void D_InitFakeNetGame (void)
+ {
+-  int i;
+-
+-  consoleplayer = displayplayer = 0;
+   solo_net = dsda_Flag(dsda_arg_solo_net);
+   coop_spawns = dsda_Flag(dsda_arg_coop_spawns);
+   netgame = solo_net;
+ 
+-  playeringame[0] = true;
+-  for (i = 1; i < g_maxplayers; i++)
+-    playeringame[i] = false;
++  // chimera (BizHawk's core): the players in the game, and whose view is
++  // shown, are the frontend's (its settings), set before the engine starts
+ }
+ 
+ void FakeNetUpdate(void)
+diff --git a/prboom2/src/g_game.c b/prboom2/src/g_game.c
+index b50d87b3b..cd04c5c30 100644
+--- a/prboom2/src/g_game.c
++++ b/prboom2/src/g_game.c
+@@ -2805,10 +2805,8 @@ void G_ReloadDefaults(void)
+ 
+   dsda_ClearPlaybackStream();
+ 
+-  // killough 2/21/98:
+-  memset(playeringame + 1, 0, sizeof(*playeringame) * (MAX_MAXPLAYERS - 1));
+-
+-  consoleplayer = 0;
++  // killough 2/21/98 cleared the players but the first, and made the first the
++  // console player; chimera (BizHawk's core): they are the frontend's
+ 
+   // MBF introduced configurable compatibility settings
+   if (mbf_features)

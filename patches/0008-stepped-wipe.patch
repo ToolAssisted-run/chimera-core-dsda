@@ -1,0 +1,58 @@
+diff -ru a/prboom2/src/d_main.c b/prboom2/src/d_main.c
+--- a/prboom2/src/d_main.c
++++ b/prboom2/src/d_main.c
+@@ -267,6 +267,27 @@
+ // The screens to wipe between are already stored, this just does the timing
+ // and screen updating
+ 
++// chimera (BizHawk's core): a frontend that runs the game a tic at a time
++// steps the melt too, a tic a frame (D_StepWipe), where D_Wipe would loop on
++// the clock until it is done
++dboolean frontend_steps_wipe;
++dboolean wipe_in_progress;
++
++dboolean D_StepWipe(void)
++{
++  dboolean done = wipe_ScreenWipe(1);
++
++  M_Drawer();                   // menu is drawn even on top of wipes
++  I_FinishUpdate();             // page flip or blit buffer
++
++  if (done)
++  {
++    wipe_in_progress = false;
++    force_singletics_to = gametic + BACKUPTICS;
++  }
++  return done;
++}
++
+ static void D_Wipe(void)
+ {
+   dboolean done;
+@@ -284,6 +305,12 @@
+     return;
+   }
+ 
++  if (frontend_steps_wipe)
++  {
++    wipe_in_progress = true;
++    return;
++  }
++
+   if (dsda_GameSpeed() != 100 && dsda_WipeAtFullSpeed())
+   {
+     old_game_speed = dsda_GameSpeed();
+diff -ru a/prboom2/src/d_main.h b/prboom2/src/d_main.h
+--- a/prboom2/src/d_main.h
++++ b/prboom2/src/d_main.h
+@@ -68,6 +68,10 @@
+ // chimera: the setup D_DoomMain runs before its loop, for a frontend whose
+ // loop is its own
+ void D_DoomMainSetup(void);
++// chimera: the screen melt, a tic at a time, for such a frontend
++extern dboolean frontend_steps_wipe;
++extern dboolean wipe_in_progress;
++dboolean D_StepWipe(void);
+ void D_AddFile (const char *file, wad_source_t source);
+ 
+ extern char* iwadlump;

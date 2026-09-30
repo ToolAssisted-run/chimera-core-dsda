@@ -1,0 +1,37 @@
+--- a/prboom2/src/d_main.c
++++ b/prboom2/src/d_main.c
+@@ -1664,24 +1664,21 @@
+ {
+   int p;
+   dsda_arg_t* arg;
+-  int player_class = PCLASS_FIGHTER;
+-
+   if (!hexen) return;
+ 
++  // chimera (BizHawk's core): each player's class is the frontend's, set
++  // before the engine starts; -class still sets the first player's
+   arg = dsda_Arg(dsda_arg_class);
+   if (arg->found)
+-    player_class = arg->value.v_int + PCLASS_FIGHTER;
+-
+-  if (
+-    player_class != PCLASS_FIGHTER &&
+-    player_class != PCLASS_CLERIC &&
+-    player_class != PCLASS_MAGE
+-  )
+-    player_class = PCLASS_FIGHTER;
++    PlayerClass[0] = arg->value.v_int + PCLASS_FIGHTER;
+ 
+-  PlayerClass[0] = player_class;
+-  for (p = 1; p < MAX_MAXPLAYERS; p++)
+-    PlayerClass[p] = PCLASS_FIGHTER;
++  for (p = 0; p < MAX_MAXPLAYERS; p++)
++    if (
++      PlayerClass[p] != PCLASS_FIGHTER &&
++      PlayerClass[p] != PCLASS_CLERIC &&
++      PlayerClass[p] != PCLASS_MAGE
++    )
++      PlayerClass[p] = PCLASS_FIGHTER;
+ 
+   randomclass = dsda_Flag(dsda_arg_randclass);
+ }

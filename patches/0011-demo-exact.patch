@@ -1,0 +1,39 @@
+--- a/prboom2/src/doomstat.h
++++ b/prboom2/src/doomstat.h
+@@ -243,7 +243,10 @@
+ extern  dboolean demorecording;
+ extern  int demover;
+ 
+-#define allow_incompatibility (!demorecording && !demoplayback)
++// chimera: every run is played as a recorded demo is (-record) - the vanilla
++// behaviours dsda keeps for demos, not its conveniences outside them - so that
++// a movie plays as its .lmp and a .lmp as its movie
++#define allow_incompatibility (false)
+ #define comperr(i) (default_comperr[i] && allow_incompatibility)
+ 
+ extern  dboolean userdemo;
+--- a/prboom2/src/dsda/skill_info.c
++++ b/prboom2/src/dsda/skill_info.c
+@@ -160,7 +160,9 @@
+ // During demo recording/playback only use args, else use cfgs
+ static void dsda_ResetGameModifiers(void)
+ {
+-  pistolstart = (allow_incompatibility ? dsda_IntConfig(dsda_config_pistol_start)     : false);   // pistolstart not allowed in demos
++  // chimera: -pistolstart is BizHawk's Pistol Start setting, which a movie
++  // records; such a movie is no demo DSDA takes, but it replays
++  pistolstart = (allow_incompatibility ? dsda_IntConfig(dsda_config_pistol_start)     : dsda_Flag(dsda_arg_pistol_start));
+   respawnparm = (allow_incompatibility ? dsda_IntConfig(dsda_config_respawn_monsters) : dsda_Flag(dsda_arg_respawn));
+   fastparm    = (allow_incompatibility ? dsda_IntConfig(dsda_config_fast_monsters)    : dsda_Flag(dsda_arg_fast));
+   nomonsters  = (allow_incompatibility ? dsda_IntConfig(dsda_config_no_monsters)      : dsda_Flag(dsda_arg_nomonsters));
+--- a/prboom2/src/g_game.c
++++ b/prboom2/src/g_game.c
+@@ -1235,8 +1235,7 @@
+ 
+   // automatic pistol start when advancing from one level to the next
+   if (pistolstart)
+-    if (allow_incompatibility)
+-      G_PlayerReborn(0);
++    G_PlayerReborn(0);
+ 
+   // initialize the msecnode_t freelist.                     phares 3/25/98
+   // any nodes in the freelist are gone by now, cleared

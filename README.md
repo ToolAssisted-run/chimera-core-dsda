@@ -1,0 +1,159 @@
+# chimera-core-dsda
+
+[dsda-doom](https://github.com/kraflab/dsda-doom), kraflab's speedrunning and TAS source port of Doom (PrBoom+'s
+successor), as a [Chimera](https://github.com/ToolAssisted-run/chimera) **game core** (`"kind": "game"`, see
+Chimera's `docs/game-cores.md`): Doom, Doom II, Final Doom, Heretic, Hexen, Chex Quest and Freedoom, a tic
+at a time in miniBox's sandbox, packaged as `dsda.chimeraCore`.
+
+**Built on upstream dsda-doom v0.30.0 (its latest release), with BizHawk's DSDA core's changes ported onto it**:
+BizHawk's core (`waterbox/dsda`, TASEmulators/dsda-doom, by feos and Sergio Martin) is the precedent, and this
+core keeps its controllers, its settings, its automap and walking-camera controls and its level-exit
+detection, on the current engine. The engine is compiled from source - its game code, its software renderer,
+its sound code and OPL music (upstream's `i_sound.c` as it is, its mixer captured a tic at a time) - without
+SDL, OpenGL or a window, which the core is instead (`waterbox/platform/`). quickerDSDA (JaffarPlus's DSDA) is
+where its input format and its test movies come from.
+
+## What it is
+
+- **The game is the System, the IWAD's release the Version** (`waterbox.config` "machines" and the `version`
+  setting): a project picks Doom II, Doom, TNT, Plutonia, Heretic, Hexen, Chex Quest, Freedoom: Phase 1 or
+  Phase 2, and then which release of that game's IWAD it runs. **The IWAD is the Version's firmware**, pinned by
+  its hash, so the wizard's folder scan finds it:
+
+  | System (`game`) | Version (`version`) | The IWAD (firmware id) |
+  |---|---|---|
+  | Doom II | `doom2-1.9` | `doom2.wad` (1.9) |
+  | Doom | `doom-ultimate` | `doom.wad` (The Ultimate Doom, 1.9) |
+  | Final Doom: TNT - Evilution | `tnt` | `tnt.wad` |
+  | Final Doom: The Plutonia Experiment | `plutonia` | `plutonia.wad` |
+  | Heretic | `heretic-1.2` | `heretic.wad` (1.2) |
+  | Hexen | `hexen-1.1` | `hexen.wad` (1.1) |
+  | Chex Quest | `chex` | `chex.wad` |
+  | Freedoom: Phase 1 | `freedoom1-0.13.0` .. `freedoom1-0.11` (seven releases) | `freedoom1.wad` |
+  | Freedoom: Phase 2 | `freedoom2-0.13.0` .. `freedoom2-0.11` (seven releases) | `freedoom2.wad` |
+
+  The engine tells a game and its mission by the IWAD's name, which is why the firmware ids are the names it
+  knows. Each release pins the hash of the file it was tested with; more releases are a line each in
+  `waterbox/gen-declaration.py`. Chex Quest 2 is a PWAD for Chex Quest (`chex2.wad` in the slot, on the `chex`
+  Version); Chex Quest 3's IWADs (`chex3v.wad`, `chex3d2.wad`) the engine knows, and the core does not declare
+  yet. Chimera shows the Version as a setting until its wizard has a selector for it (`"versionSetting"`).
+- **PWADs and patches are the project's files** (`file_slots.json`, the `pwad` slot: .wad, .deh, .bex, in load
+  order - the WADs as `-file`, then the patches as `-deh`). None for the game itself; the wizard's files step
+  asks for none.
+- **A step is a tic**: 1/35 s, the game's own clock. The screen melt between levels (Render Wipescreen) is
+  stepped a tic at a time too, and its steps are lag - the game waits, as in BizHawk's core
+  (`InputWasRead`).
+- **A movie is a demo**: every run is played as upstream plays a recorded demo (`patches/0011`): the vanilla
+  behaviours dsda keeps for demos - Doom II's short "Now entering" screen, the references a removed thing
+  keeps at the old complevels, weapon autoswitch, the skill flags from the arguments - rather than its
+  conveniences outside them. So a demo's inputs as a movie play exactly as the engine plays the demo itself,
+  and a movie's inputs are a demo. (Upstream v0.30 made its "Now entering" screen longer outside demos, which
+  BizHawk's older engine does not have; the Pistol Start setting stays as BizHawk has it.)
+- **The controls are BizHawk's DSDA controller** (`waterbox/dsda-input.c`, `DSDA.Controller.cs`), one for each
+  game's format: for each of four players the Run, Strafe and Turn Speed axes (Turn Speed Frac. with longtics),
+  Weapon Select, Mouse Run and Mouse Turn, and for Heretic and Hexen Look, Fly and Use Artifact; the buttons
+  Fire, Use, Forward, Backward, Turn Left and Right (a short tap turns slower), Strafe Left and Right, Run,
+  Strafe (turning with it held is strafe50), the weapons, and the Raven games' inventory, look and fly, Hexen's
+  Jump and End Player; then the machine's Change Gamma, the automap's twelve controls and the walking camera
+  (its mode, speeds and reset). A player not in the game has their inputs inactive. The default keys are
+  BizHawk's (WASD, the mouse, the number keys, Tab for the automap).
+- **Settings**: BizHawk's, by the same names and values - the compatibility level (Doom-format games), skill,
+  multiplayer mode, initial episode and map, the monster flags, pistol start, co-op spawns, chained episodes,
+  always run, the melt, turning resolution (shorttics or longtics), the mouse sensitivities, strafe50, Prevent
+  Level Exit and Prevent Game End (the exit is seen and not taken, for level-by-level runs), turbo, the RNG
+  seed (complevel 9 and up), the four players and Hexen's classes; and, not part of the machine, the resolution
+  (1x-12x or BizHawk's aspect-corrected sizes), the volumes, gamma, messages, the HUD and extended HUD, the
+  automap's totals, time, coordinates, overlay, details and trail, full vision and whose view is shown.
+- **Properties** (Chimera's `docs/game-cores.md`): a `Game State` block (the tic, the level time, the game
+  state, episode, map, skill and complevel, the level's things, lines, sectors and totals, the exit and game
+  end, the melt's lag, the RNG indexes, and each player's position, angle and momentum) and each player's
+  `player_t` (the Players domain: health, armour, the ready and pending weapons, ammunition, kills, items,
+  secrets, the view height, the attack and use latches, the damage and bonus flashes); the
+  level's things, lines and sectors are domains of their own, in the engine's records.
+- **An engine error halts the machine, not the frontend**: `I_Error` stops the engine where it stands, with its
+  message; the machine keeps stepping, silent.
+
+## What has been run
+
+**Every demo in every IWAD at hand plays as a movie exactly as the engine plays it**, tic for tic - the map,
+the level time, the game's RNG, the kills, every player's position, angle and health (`run-gate.sh`, the demos
+leg): Freedoom 0.13.0's eight (1.9 demos, one to three players), The Ultimate Doom's four, Doom II's three,
+TNT's three, Plutonia's three, Chex Quest's four. So do all 39 of quickerDSDA's test demos: UV-max runs of
+all of Doom II (178,756 tics), TNT (305,108) and Plutonia (213,894), each through its 32 maps with the secret
+levels to MAP30 (Doom II's and TNT's seen to the game's end), the four Ultimate Doom UV-max episodes (each to its E?M8's end), Freedoom 0.11's
+episode 1 in one demo (75,090 tics) and its single levels, Doom II's single-level and four-player demos.
+
+Over them: native == sandbox (every step's picture, sound and lag, the Game State), a savestate before every
+step, a new host in the middle; Heretic and Hexen from their IWADs (native == sandbox, session; their demos are
+in their own formats, which the demo leg does not read yet); Chex Quest 2, its PWAD on Chex Quest (native ==
+sandbox, session). PWADs from the slot, each on its game, 1,500 steps native == sandbox: Sigil and Sigil II
+(E5, E6, UMAPINFO) on The Ultimate Doom, the Master Levels and Eviternity (complevel 11, its DeHackEd and
+graphics) on Doom II, Plutonia 2 on Plutonia, TNT's fixed MAP31 on TNT. A PWAD on the wrong IWAD is refused
+with the engine's own reason ("Texture errors: 91! PL2.WAD seems to be incompatible with DOOM 2"). And through Chimera's
+own engine: chimera-run plays a demo as a movie in Chimera's format to the same machine, with and without a
+savestate every frame.
+
+## The patches
+
+- `0001-headless-setup.patch`: `D_DoomMainSetup()`, D_DoomMain's setup without its loop, for the core's.
+- `0002-error-hook.patch`: `I_Error` hands its message to a weak `chimera_error_message()` first.
+- `0003-level-exit-inventory.patch`: BizHawk's level-exit and game-end detection and prevention (`G_Ticker`).
+- `0004-players-from-frontend.patch`: the players in the game and whose view, the frontend's.
+- `0005-intercepts-overrun-playerstarts.patch`: BizHawk's vanilla intercepts overrun, which reaches the player
+  starts (TASEmulators/dsda-doom dafa0543).
+- `0006-automap-for-the-frontend.patch`: the automap's zoom, pan and marks, reachable by the frontend.
+- `0007-rngseed.patch`: `-rngseed`, the seed a new game starts with (BizHawk's).
+- `0008-stepped-wipe.patch`: the melt a tic at a time (`D_StepWipe`), for a frontend that steps it.
+- `0009-hexen-classes-from-frontend.patch`: each Hexen player's class, the frontend's.
+- `0010-patch-spare-column.patch`: a spare column after a patch's last: a sprite's drawer can read past its
+  pixels, which were the column table's pointers - a picture that differed with where memory lay.
+- `0011-demo-exact.patch`: every run played as a recorded demo is (see above); `-pistolstart` kept.
+
+## Building
+
+```
+git submodule update --init
+make -C waterbox -f native.mk -j$(nproc)    # the native reference and the harnesses
+make -C waterbox -f guest.mk -j$(nproc)     # core.wbx
+./waterbox/build-package.sh                 # build/package/dsda.chimeraCore
+```
+
+miniBox is taken from `MB=`/`MINIBOX_DIR` (`-m` for the scripts), else a Chimera checkout's in `~/chimera`, with
+its C++ guest toolchain built (`meson setup build/meson-cpp -Dguest_cpp=true`). The patches go onto
+`extern/dsda-doom` on the first build (`waterbox/apply-patches.sh`, all or nothing); dsda-doom.wad, the
+engine's own data, is built from upstream's `data/` with its own tool. `waterbox/gen-declaration.py` writes
+`waterbox.config`, `file_slots.json`, `default_keybinds.json` and `dsda-versions.h`.
+
+## The gate
+
+`./waterbox/run-gate.sh [-m <miniBox>] [-f <Freedoom 0.13.0>] [-i <IWAD folder>] [-c <chimera-run>]`. The
+commercial IWADs are not the core's to carry, so the gate's content is **Freedoom** (BSD-3-Clause, downloaded
+from its releases when `-f` does not name it) and **levels of its own** (`tests/make-rooms.py`: a PWAD of
+one-room maps with an exit switch, and a demo through them): each demo as a movie = the engine playing it
+(`tests/lmp2sol.py` converts); the levels' exits and intermissions the same; native == sandbox, rerecord and
+session on a three-player demo; the melt's lag in both builds; turbo, also across the melts; the settings in
+both builds (the skill, complevel, map and monsters where the engine keeps them, the resolution, a PWAD's and a
+patch's DeHackEd); the declaration up to date; five refusals; no host clock in the guest; teeth; and with `-c`
+the package through Chimera's own engine. With `-i`, every IWAD in the folder the declaration pins: its own
+demos (the Doom-format ones), native == sandbox and session.
+
+## Where things are
+
+- `waterbox/dsda-driver.c`: the machine - the settings, the engine's arguments, the step, BizHawk's input
+  translation, the automap and camera, the picture, the sound, the domains. `waterbox/dsda-properties.h`: the
+  property table.
+- `waterbox/dsda-input.c`: the three controllers, in BizHawk's order.
+- `waterbox/platform/`: what the engine's SDL and OpenGL code was - the video (headless), the SDL shim, the
+  clock, the stubs, `detmath.c` (the math the renderer calls, the same in every build).
+- `waterbox/wbx-entry.c`: the exports. `run-native.c`, `run-wbx.c`, `gate-harness.h`: the harnesses.
+- `waterbox/gen-declaration.py`, `waterbox-base.json`: the declaration. `waterbox/tests/`: the gate's tools.
+- `docs/PLAN.md`: the decisions and what is left.
+
+## Licence
+
+This repository is GPL-2.0-or-later, as dsda-doom is (`extern/dsda-doom`, GPL-2.0-or-later: PrBoom+'s, id
+Software's Doom source and Raven's Heretic and Hexen sources, all released under the GPL). zlib
+(`extern/zlib`) is under the zlib licence. `waterbox/compat/GL/gl.h` is Mesa's (MIT), `glext.h` and
+`KHR/khrplatform.h` are the Khronos Group's (MIT): headers only, which the engine's sources include for their
+OpenGL declarations (the GL renderer is not compiled in; the core stubs it). The package carries no game data but dsda-doom.wad, the engine's
+own (GPL, built from upstream's `data/`).

@@ -1,0 +1,90 @@
+diff --git a/prboom2/src/g_game.c b/prboom2/src/g_game.c
+index b50d87b3b..e5278e4ed 100644
+--- a/prboom2/src/g_game.c
++++ b/prboom2/src/g_game.c
+@@ -153,6 +153,13 @@ struct
+ static const byte *demobuffer;   /* cph - only used for playback */
+ static int demolength; // check for overrun (missing DEMOMARKER)
+ 
++// chimera (BizHawk's core): a level's exit and the game's end, seen and, when
++// asked, prevented - for runs that stay on one level
++dboolean        preventLevelExit;
++dboolean        preventGameEnd;
++dboolean        reachedLevelExit;
++dboolean        reachedGameEnd;
++
+ gameaction_t    gameaction;
+ gamestate_t     gamestate;
+ dboolean        in_game;
+@@ -276,8 +283,8 @@ char         savedescription[SAVEDESCLEN];  // Description to save in savegame i
+ int inventoryTics;
+ int lookheld;
+ 
+-static dboolean InventoryMoveLeft(void);
+-static dboolean InventoryMoveRight(void);
++dboolean InventoryMoveLeft(void);
++dboolean InventoryMoveRight(void);
+ // end heretic
+ 
+ // hexen
+@@ -1471,6 +1478,23 @@ void G_Ticker (void)
+       G_DoReborn(i);
+   P_MapEnd();
+ 
++  // chimera (BizHawk's core): the level's exit and the game's end this tic,
++  // and their prevention
++  reachedLevelExit = 0;
++  reachedGameEnd = 0;
++  if (gameaction == ga_completed)
++  {
++    reachedLevelExit = 1;
++    if (preventLevelExit) gameaction = ga_nothing;
++  }
++  if ((gameaction == ga_completed && gamemode == commercial && gamemap == 30) ||
++      (gameaction == ga_completed && gamemode == retail && gamemap == 8) ||
++      (preventGameEnd && gameaction == ga_victory))
++  {
++    reachedGameEnd = 1;
++    if (preventGameEnd) gameaction = ga_nothing;
++  }
++
+   // do things to change the game state
+   while (gameaction != ga_nothing)
+   {
+@@ -4252,7 +4276,7 @@ void G_ContinueDemo(const char *playback_name)
+ 
+ // heretic
+ 
+-static dboolean InventoryMoveLeft(void)
++dboolean InventoryMoveLeft(void)
+ {
+     player_t *plr;
+ 
+@@ -4291,7 +4315,7 @@ static dboolean InventoryMoveLeft(void)
+     return true;
+ }
+ 
+-static dboolean InventoryMoveRight(void)
++dboolean InventoryMoveRight(void)
+ {
+     player_t *plr;
+ 
+diff --git a/prboom2/src/g_game.h b/prboom2/src/g_game.h
+index bdc201bcd..6b9853fd8 100644
+--- a/prboom2/src/g_game.h
++++ b/prboom2/src/g_game.h
+@@ -133,4 +133,14 @@ extern int pwad_help2_check;
+ 
+ void G_Completed(int map, int position, int flags, angle_t angle);
+ 
++// chimera (BizHawk's core): the level's exit and the game's end, seen this tic
++// and, when asked, prevented; the Raven games' inventory moves, for a frontend
++// that sends them as buttons
++extern dboolean preventLevelExit;
++extern dboolean preventGameEnd;
++extern dboolean reachedLevelExit;
++extern dboolean reachedGameEnd;
++dboolean InventoryMoveLeft(void);
++dboolean InventoryMoveRight(void);
++
+ #endif

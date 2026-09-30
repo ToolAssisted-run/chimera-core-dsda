@@ -1,0 +1,35 @@
+diff --git a/prboom2/src/p_maputl.c b/prboom2/src/p_maputl.c
+index 3642ce5b5..30f1f22d4 100644
+--- a/prboom2/src/p_maputl.c
++++ b/prboom2/src/p_maputl.c
+@@ -1186,16 +1186,20 @@ intercepts_overrun_t intercepts_overrun[] =
+   {4,   NULL, /* &swingx, */           NULL},
+   {4,   NULL, /* &swingy, */           NULL},
+   {4,   NULL,                          NULL},
+-  {4,  &playerstarts[0][0].x,       &playerstarts[0][0].y},
+-  {4,  &playerstarts[0][0].angle,   &playerstarts[0][0].type},
+-  {4,  &playerstarts[0][0].options, &playerstarts[0][1].x},
+-  {4,  &playerstarts[0][1].y,       &playerstarts[0][1].angle},
+-  {4,  &playerstarts[0][1].type,    &playerstarts[0][1].options},
+-  {4,  &playerstarts[0][2].x,       &playerstarts[0][2].y},
+-  {4,  &playerstarts[0][2].angle,   &playerstarts[0][2].type},
+-  {4,  &playerstarts[0][2].options, &playerstarts[0][3].x},
+-  {4,  &playerstarts[0][3].y,       &playerstarts[0][3].angle},
+-  {4,  &playerstarts[0][3].type,    &playerstarts[0][3].options},
++  // chimera (BizHawk's core, TASEmulators/dsda-doom dafa0543): vanilla's
++  // mapthing_t has short x and y, the map units; here they are fixed_t, whose
++  // map units are the upper 16 bits - the short overwritten there, not in the
++  // fraction (little-endian)
++  {4, 1+(short*)&playerstarts[0][0].x,       1+(short*)&playerstarts[0][0].y},
++  {4,           &playerstarts[0][0].angle,             &playerstarts[0][0].type},
++  {4,           &playerstarts[0][0].options, 1+(short*)&playerstarts[0][1].x},
++  {4, 1+(short*)&playerstarts[0][1].y,                 &playerstarts[0][1].angle},
++  {4,           &playerstarts[0][1].type,              &playerstarts[0][1].options},
++  {4, 1+(short*)&playerstarts[0][2].x,       1+(short*)&playerstarts[0][2].y},
++  {4,           &playerstarts[0][2].angle,             &playerstarts[0][2].type},
++  {4,           &playerstarts[0][2].options, 1+(short*)&playerstarts[0][3].x},
++  {4, 1+(short*)&playerstarts[0][3].y,                 &playerstarts[0][3].angle},
++  {4,           &playerstarts[0][3].type,              &playerstarts[0][3].options},
+   {4,   NULL, /* &blocklinks, */       NULL},
+   {4,   &bmapwidth,                    NULL},
+   {4,   NULL, /* &blockmap, */         NULL},

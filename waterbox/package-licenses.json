@@ -1,0 +1,32 @@
+{
+  "package": "dsda",
+  "effectiveTerms": "GPL-2.0-or-later",
+  "commercialUse": "yes, under the GPL's terms",
+  "note": "The built core combines this repository's integration (GPL-2.0-or-later: the driver, the headless platform layer, the patches) with dsda-doom (GPL-2.0-or-later), compiled in from the submodule extern/dsda-doom (github.com/kraflab/dsda-doom, based on PrBoom+ and Doom's source release), and zlib (the zlib licence), which inflates ZDoom's compressed nodes. The package's assets/dsda-doom.wad is dsda-doom's own data, built from its sources (prboom2/data) with its rdatawad tool, under the same licence. Mesa's OpenGL headers (MIT) are read by the compiler for declarations only; no OpenGL code is in the core. The package carries none of the games' data: the IWADs and PWADs are the project's, supplied by the user.",
+  "components": [
+    {
+      "name": "chimera-core-dsda (integration)",
+      "license": "GPL-2.0-or-later",
+      "url": "https://github.com/ToolAssisted-run/chimera-core-dsda",
+      "commit": "{selfCommit}",
+      "file": "LICENSE",
+      "sourceUrl": "https://github.com/ToolAssisted-run/chimera-core-dsda/archive/{commit}.tar.gz"
+    },
+    {
+      "name": "dsda-doom",
+      "license": "GPL-2.0-or-later",
+      "url": "https://github.com/kraflab/dsda-doom",
+      "commit": "{submodule:extern/dsda-doom}",
+      "file": "extern/dsda-doom/prboom2/COPYING",
+      "sourceUrl": "https://github.com/kraflab/dsda-doom/archive/{commit}.tar.gz"
+    },
+    {
+      "name": "zlib",
+      "license": "Zlib",
+      "url": "https://github.com/madler/zlib",
+      "commit": "{submodule:extern/zlib}",
+      "file": "extern/zlib/LICENSE",
+      "sourceUrl": "https://github.com/madler/zlib/archive/{commit}.tar.gz"
+    }
+  ]
+}

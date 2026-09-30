@@ -1,0 +1,27 @@
+diff --git a/prboom2/src/d_main.c b/prboom2/src/d_main.c
+index 4e6abe4a7..e2347c484 100644
+--- a/prboom2/src/d_main.c
++++ b/prboom2/src/d_main.c
+@@ -1945,7 +1945,7 @@ static void IdentifyVersion (void)
+ // CPhipps - the old contents of D_DoomMain, but moved out of the main
+ //  line of execution so its stack space can be freed
+ 
+-static void D_DoomMainSetup(void)
++void D_DoomMainSetup(void)
+ {
+   int p, slot = -1;
+   dsda_arg_t *arg;
+diff --git a/prboom2/src/d_main.h b/prboom2/src/d_main.h
+index 1b2c78e7c..fb6d3a328 100644
+--- a/prboom2/src/d_main.h
++++ b/prboom2/src/d_main.h
+@@ -65,6 +65,9 @@ void D_Display(fixed_t frac);
+ void D_PageTicker(void);
+ void D_StartTitle(void);
+ void D_DoomMain(void);
++// chimera: the setup D_DoomMain runs before its loop, for a frontend whose
++// loop is its own
++void D_DoomMainSetup(void);
+ void D_AddFile (const char *file, wad_source_t source);
+ 
+ extern char* iwadlump;
