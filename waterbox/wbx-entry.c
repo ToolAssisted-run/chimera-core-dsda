@@ -6,11 +6,14 @@
  */
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <emulibc.h>
+#include <waterbox_settings.h>
 
 #include "dsda-driver.h"
+#include "lmp-import.h"
 
 static char g_load_error[1024];
 
@@ -111,3 +114,118 @@ ECL_EXPORT int GetMemoryDomainWritable(int i) { return dsdadrv_domain_writable(i
 ECL_EXPORT const char *GetGameProperties(void) { return dsdadrv_game_properties(); }
 
 ECL_EXPORT uint64_t GetCycleCount(void) { return dsdadrv_clock(); }
+
+/* ------------------------------------------------------------ the importer */
+
+/* the files an import reads (the demo, the WADs), each read whole once */
+#define IMPORT_FILES 64
+static struct { char name[256]; unsigned char *data; size_t size; } g_import_files[IMPORT_FILES];
+static int g_import_nfiles;
+static char *g_import_result;
+
+static const unsigned char *import_read(void *ctx, const char *name, size_t *size, const char **found_name)
+{
+	(void)ctx;
+	(void)found_name;
+	for (int i = 0; i < g_import_nfiles; i++)
+		if (!strcmp(g_import_files[i].name, name))
+		{
+			*size = g_import_files[i].size;
+			return g_import_files[i].data;
+		}
+	if (g_import_nfiles == IMPORT_FILES) return NULL;
+	FILE *f = fopen(name, "rb");
+	if (!f) return NULL;
+	unsigned char *data = NULL;
+	size_t n = 0, cap = 0;
+	for (;;)
+	{
+		if (n == cap)
+		{
+			unsigned char *grown = (unsigned char *)realloc(data, cap = cap ? cap * 2 : 1 << 16);
+			if (!grown) { free(data); fclose(f); return NULL; }
+			data = grown;
+		}
+		const size_t got = fread(data + n, 1, cap - n, f);
+		if (!got) break;
+		n += got;
+	}
+	fclose(f);
+	snprintf(g_import_files[g_import_nfiles].name, sizeof g_import_files[0].name, "%s", name);
+	g_import_files[g_import_nfiles].data = data;
+	g_import_files[g_import_nfiles].size = n;
+	g_import_nfiles++;
+	*size = n;
+	return data;
+}
+
+static char *import_error(const char *msg)
+{
+	size_t n = strlen(msg);
+	char *out = (char *)malloc(n * 6 + 16);
+	if (!out) return NULL;
+	char *p = out + sprintf(out, "{\"error\": \"");
+	for (const unsigned char *c = (const unsigned char *)msg; *c; c++)
+	{
+		if (*c == '"' || *c == '\\') p += sprintf(p, "\\%c", *c);
+		else if (*c < 0x20 || *c >= 0x7f) p += sprintf(p, "\\u%04x", *c);
+		else *p++ = (char)*c;
+	}
+	strcpy(p, "\"}\n");
+	return out;
+}
+
+/* A demo as the parts of a Chimera project (lmp-import.h) - for a frontend,
+ * which loads the core and calls this instead of Init. The demo is the mounted
+ * file "movie"; the WADs it reads are mounted files by their names (the IWAD as
+ * importIwad names it, or under its firmware id; the PWADs and patches by the
+ * names the demo's footer gives, or importPwads's). The options are settings:
+ *   importVersion     the IWAD's release (a version id)
+ *   importIwad        the mounted IWAD's name, its hash the release
+ *   importPwads       the PWADs and patches by name, ';' between, in order
+ *   importNoPwads     none, whatever the footer names
+ *   importLongtics    a Raven demo recorded with -longtics its header does not say
+ *   importRespawn, importFast, importNomonsters   a 1.2 demo's monster flags
+ * The JSON of the parts - "settings", "firmware", "files", "input", "frames",
+ * and what the demo is ("format", "tics", "players", "footer", "port",
+ * "notes") - or {"error": "why"}. */
+ECL_EXPORT const char *ImportMovie(void)
+{
+	static char version[64], iwad[256], pwad_list[4096];
+	static char *pwads[64];
+	free(g_import_result);
+	g_import_result = NULL;
+	for (int i = 0; i < g_import_nfiles; i++) free(g_import_files[i].data);
+	g_import_nfiles = 0;
+
+	struct lmpi_options o;
+	memset(&o, 0, sizeof o);
+	version[0] = iwad[0] = pwad_list[0] = 0;
+	if (wbx_setting_str("importVersion", version, (int)sizeof version) > 0) o.version = version;
+	if (wbx_setting_str("importIwad", iwad, (int)sizeof iwad) > 0) o.iwad = iwad;
+	if (wbx_setting_str("importPwads", pwad_list, (int)sizeof pwad_list) >= 0)
+	{
+		int n = 0;
+		for (char *t = strtok(pwad_list, ";"); t && n < 64; t = strtok(NULL, ";")) pwads[n++] = t;
+		o.pwads = (const char *const *)pwads;
+		o.npwads = n;
+	}
+	o.no_pwads = wbx_setting_bool("importNoPwads", 0);
+	o.longtics = wbx_setting_bool("importLongtics", 0);
+	o.respawn = wbx_setting_bool("importRespawn", 0);
+	o.fast = wbx_setting_bool("importFast", 0);
+	o.nomonsters = wbx_setting_bool("importNomonsters", 0);
+	o.read = import_read;
+
+	size_t size;
+	const unsigned char *demo = import_read(NULL, "movie", &size, NULL);
+	char err[1024];
+	if (!demo)
+		g_import_result = import_error("no demo: the file \"movie\" is not mounted");
+	else
+	{
+		g_import_result = lmpi_import(demo, size, &o, NULL, NULL, err, sizeof err);
+		if (!g_import_result) g_import_result = import_error(err);
+	}
+	return g_import_result ? g_import_result : "{\"error\": \"out of memory\"}\n";
+}

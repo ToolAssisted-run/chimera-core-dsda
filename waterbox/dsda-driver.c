@@ -293,22 +293,27 @@ void dsdadrv_set_axis(int index, int32_t value)
 }
 
 /* a player not in the game has nothing; "Turn Speed Frac." is longtics' */
+static struct dsda_activity activity(void)
+{
+	struct dsda_activity a;
+	for (int i = 0; i < 4; i++) a.present[i] = g.s.player_present[i];
+	a.longtics = g.s.longtics;
+	a.extended_commands = g.s.extended_commands;
+	return a;
+}
+
 int dsdadrv_button_active(int index)
 {
 	if (!g.ctl || index < 0 || index >= g.ctl->nbuttons) return 0;
-	const int port = g.ctl->buttons[index].port, control = g.ctl->buttons[index].control;
-	if (control == C_EX_JUMP && !g.s.extended_commands) return 0;
-	if ((control == C_GOD || control == C_NOCLIP) && g.s.extended_commands < 2) return 0;
-	return port == 0 || g.s.player_present[port - 1];
+	const struct dsda_activity a = activity();
+	return dsda_input_active(&g.ctl->buttons[index], 0, &a);
 }
 
 int dsdadrv_axis_active(int index)
 {
 	if (!g.ctl || index < 0 || index >= g.ctl->naxes) return 0;
-	const struct dsda_input *in = &g.ctl->axes[index];
-	if (in->control == C_TURN_FRAC && !g.s.longtics) return 0;
-	if (in->control == C_FREE_LOOK && !g.s.extended_commands) return 0;
-	return in->port == 0 || g.s.player_present[in->port - 1];
+	const struct dsda_activity a = activity();
+	return dsda_input_active(&g.ctl->axes[index], 1, &a);
 }
 
 /* ------------------------------------------------------------ init */

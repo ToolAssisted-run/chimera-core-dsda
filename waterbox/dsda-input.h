@@ -70,4 +70,17 @@ struct dsda_controller
 
 const struct dsda_controller *dsda_controller(int format);
 
+/* what decides which inputs are active (IsButtonActive, IsAxisActive): the
+ * players present, longtics, dsda's extended commands (0 off, 1 on, 2 with the
+ * casual features). The driver's and the importer's (a project's input log
+ * holds the active inputs only) - one rule for both. */
+struct dsda_activity
+{
+	int present[4];
+	int longtics;
+	int extended_commands;
+};
+
+int dsda_input_active(const struct dsda_input *in, int is_axis, const struct dsda_activity *a);
+
 #endif

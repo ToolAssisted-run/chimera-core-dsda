@@ -51,10 +51,11 @@ where its input format and its test movies come from.
   `patches/0012`). So a demo's inputs as a movie play exactly as the engine plays the demo itself, and a
   movie's inputs are a demo. (Upstream v0.30 made its "Now entering" screen longer outside demos, which
   BizHawk's older engine does not have; the Pistol Start setting stays as BizHawk has it.)
-- **Every demo imports** (`tools/lmp-import.py`, below): whatever a demo dictates - its format's compatibility
-  level, the skill and map, the players and their classes, the monster flags, the turning resolution, a
-  Boom-or-later demo's option block, dsda's extended commands, its footer's arguments - is a setting of the
-  project, its IWAD the firmware, its PWADs the slot's files, and its tics the movie, frame for tic.
+- **Every demo imports**, by the core's own importer (`waterbox/lmp-import.cpp`, below): whatever a demo dictates -
+  its format's compatibility level, the skill and map, the players and their classes, the monster flags, the
+  turning resolution, a Boom-or-later demo's option block, dsda's extended commands, its footer's arguments - is a
+  setting of the project, its IWAD the firmware, its PWADs the slot's files, and its tics the movie, frame for
+  tic.
 - **The controls are BizHawk's DSDA controller** (`waterbox/dsda-input.c`, `DSDA.Controller.cs`), one for each
   game's format: for each of four players the Run, Strafe and Turn Speed axes (Turn Speed Frac. with longtics),
   Weapon Select, Mouse Run and Mouse Turn, and for Heretic and Hexen Look, Fly and Artifact; the buttons
@@ -97,15 +98,22 @@ where its input format and its test movies come from.
 ## Importing a demo
 
 ```
-tools/lmp-import.py demo.lmp --iwad DOOM2.WAD [--wads <folder>]... [-o demo.chimeraProject]
-tools/lmp-import.py demo.lmp --version freedoom2-0.13.0 --pwad map.wad --info
+build/native/lmp-import demo.lmp --iwad DOOM2.WAD [--wads <folder>]... [-o demo.chimeraProject]
+build/native/lmp-import demo.lmp --version freedoom2-0.13.0 --pwad map.wad --info
 ```
 
-The project it writes is the demo: open it in Chimera (or `chimera-run --project`) with the IWAD and the PWADs at
-hand. The game and its release come from `--iwad` (the file, by its hash), `--version`, or the demo's own footer
-(its `-iwad`, found in `--wads`); the PWADs and patches from the footer's `-file` and `-deh` (found by name in
-`--wads`) or `--pwad`, in order; `--no-pwads` takes none (an IWAD's own demos). `--package` pins the project to a
-package (its name, version and hash) and reads the declaration from it.
+The importer is the core's (`waterbox/lmp-import.cpp`, C++): compiled into core.wbx, where a frontend calls it
+- the export `ImportMovie`, on a loaded core instead of `Init`, the demo mounted as `movie` and the WADs it
+reads by their names, its options as settings (`importVersion`, `importIwad`, `importPwads`, `importNoPwads`,
+`importLongtics`, `importRespawn`, `importFast`, `importNomonsters`), the project's parts returned as JSON
+(`settings`, `firmware`, `files`, `input`, `frames`, what the demo is, notes) or `{"error": ...}` - and into
+the command-line tool (`tools/lmp-import.cpp`, built by `native.mk` as `build/native/lmp-import`), which finds
+the files in folders, pins the package and writes the whole `.chimeraProject`. The project it writes is the
+demo: open it in Chimera (or `chimera-run --project`) with the IWAD and the PWADs at hand. The game and its
+release come from `--iwad` (the file, by its hash), `--version`, or the demo's own footer (its `-iwad`, found in
+`--wads`); the PWADs and patches from the footer's `-file` and `-deh` (found by name in `--wads`) or `--pwad`, in
+order; `--no-pwads` takes none (an IWAD's own demos). `--package` pins the project to a package (its version and
+hash); the settings' names and options are the core's own, compiled in from the declaration.
 
 Every format dsda-doom plays: Doom 1.0-1.2 (no version byte; its monster flags are not in it - the footer's,
 or `--respawn`, `--fast`, `--nomonsters`), 1.4-1.9 (the complevel as `G_GetOriginalDoomCompatLevel` gives it:
@@ -132,7 +140,7 @@ all of Doom II (178,756 tics), TNT (305,108) and Plutonia (213,894), each throug
 levels to MAP30 (Doom II's and TNT's seen to the game's end), the four Ultimate Doom UV-max episodes (each to its E?M8's end), Freedoom 0.11's
 episode 1 in one demo (75,090 tics) and its single levels, Doom II's single-level and four-player demos.
 
-**Every demo imports as itself** (`tools/lmp-import.py`): imported, the project's movie plays as the engine
+**Every demo imports as itself** (`build/native/lmp-import`): imported, the project's movie plays as the engine
 plays the demo, tic for tic - the IWADs' own demos (Heretic's and Hexen's too), all of quickerDSDA's (its
 full-game runs through the importer as well), a demo of every format the engine records and of every other
 format it plays, made from those (the gate), and 218 of 232 demos from the DSDA archive for the IWADs and PWADs
@@ -195,22 +203,22 @@ engine's own data, is built from upstream's `data/` with its own tool. `waterbox
 ## The gate
 
 `./waterbox/run-gate.sh [-m <miniBox>] [-f <Freedoom 0.13.0>] [-i <IWAD folder>] [-c <chimera-run>]`. The
-commercial IWADs are not the core's to carry, so the gate's content is **Freedoom** (BSD-3-Clause, downloaded
-from its releases when `-f` does not name it), **levels of its own** (`tests/make-rooms.py`: a PWAD of
-one-room maps with an exit switch, and a demo through them) and **demos the engine records**: each demo is
-imported (`tools/lmp-import.py`) and its project's movie played = the engine playing the demo itself, tic for
-tic - Freedoom's eight; the levels' exits and intermissions; a demo of every format dsda-doom records, from a
-movie that works every input (`tests/make-recording-movie.py`: every complevel, longtics and shorttics,
-dsda's format with its extended commands, co-op, deathmatch, the monster flags, a seed, the footer's
-arguments) and of every format it plays and does not record, made from those (`tests/craft-demo.py`: 1.2,
-1.4, 1.5, LxDoom, Boom 2.00, option blocks of every layout, footers, special commands, PrBoom+um); a changed
-option block's project without it is not the demo; five demos the importer refuses. Then native == sandbox,
-rerecord and session on a three-player demo; the melt's lag in both builds; turbo, also across the melts; the
-settings in both builds; the declaration up to date; eight refusals; no host clock in the guest; teeth; and
-with `-c` an imported project through Chimera's own engine (`chimera-run --project`). With `-i`, every IWAD in
-the folder the declaration pins: its own demos (Doom's, Doom II's, Final Doom's, Chex Quest's, Heretic's,
-Hexen's) imported, Heretic and Hexen demos the engine records (their header's flags, longtics, Hexen's classes
-and warp numbers, co-op, dsda's format), native == sandbox and session.
+commercial IWADs are not the core's to carry, so the gate's content is **Freedoom** (BSD-3-Clause, downloaded from
+its releases when `-f` does not name it), **levels of its own** (`tests/make-rooms.py`: a PWAD of one-room maps
+with an exit switch, and a demo through them) and **demos the engine records**: each demo is imported
+(`build/native/lmp-import`) and its project's movie played = the engine playing the demo itself, tic for tic -
+Freedoom's eight; the levels' exits and intermissions; a demo of every format dsda-doom records, from a movie that
+works every input (`tests/make-recording-movie.py`: every complevel, longtics and shorttics, dsda's format with
+its extended commands, co-op, deathmatch, the monster flags, a seed, the footer's arguments) and of every format
+it plays and does not record, made from those (`tests/craft-demo.py`: 1.2, 1.4, 1.5, LxDoom, Boom 2.00, option
+blocks of every layout, footers, special commands, PrBoom+um); a changed option block's project without it is not
+the demo; five demos the importer refuses; the core's `ImportMovie` the same in both builds and as the command
+line's. Then native == sandbox, rerecord and session on a three-player demo; the melt's lag in both builds; turbo,
+also across the melts; the settings in both builds; the declaration up to date; eight refusals; no host clock in
+the guest; teeth; and with `-c` an imported project through Chimera's own engine (`chimera-run --project`). With
+`-i`, every IWAD in the folder the declaration pins: its own demos (Doom's, Doom II's, Final Doom's, Chex Quest's,
+Heretic's, Hexen's) imported, Heretic and Hexen demos the engine records (their header's flags, longtics, Hexen's
+classes and warp numbers, co-op, dsda's format), native == sandbox and session.
 
 ## Where things are
 
@@ -221,7 +229,8 @@ and warp numbers, co-op, dsda's format), native == sandbox and session.
 - `waterbox/platform/`: what the engine's SDL and OpenGL code was - the video (headless), the SDL shim, the
   clock, the stubs, `detmath.c` (the math the renderer calls, the same in every build).
 - `waterbox/wbx-entry.c`: the exports. `run-native.c`, `run-wbx.c`, `gate-harness.h`: the harnesses.
-- `tools/lmp-import.py`: the importer.
+- `waterbox/lmp-import.cpp`: the importer (the core's `ImportMovie`, and the command line's);
+  `tools/lmp-import.cpp`: its command line.
 - `waterbox/gen-declaration.py`, `waterbox-base.json`: the declaration. `waterbox/tests/`: the gate's tools (the
   rooms, the recording movie, the crafted demos, a project as a harness folder).
 - `docs/PLAN.md`: the decisions and what is left.

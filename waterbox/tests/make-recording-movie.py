@@ -3,22 +3,24 @@
 a demo can hold, for the gate's format legs to record demos with: the move
 and turn axes past what keys make, strafe50 from the keys, longtics'
 fractions, every weapon number (the axis and the keys), fire and use, a pause
-held and let go, Heretic's and Hexen's look, fly, artifacts and inventory,
-Hexen's jump, and dsda's extended commands (jump, free look, god, no clip) -
-each where the settings make the input active (tools/lmp-import.py's layout).
-The pattern is fixed: the same settings give the same movie.
+held and let go, Heretic's and Hexen's look, fly, artifacts, special commands
+and inventory, Hexen's jump, and dsda's extended commands (jump, free look, god,
+no clip) - each only where the settings give it meaning. The pattern is fixed:
+the same settings give the same movie.
 
-usage: make-recording-movie.py <settings JSON> <game> <frames> <out.txt> [<config>]
+The LogKey names every input of the game's controller (waterbox.config's): the
+harnesses read a movie's columns by those names, and the driver reads an input
+only where the settings make it one (an absent player's, a casual command
+without the casual features, are never read).
+
+usage: make-recording-movie.py <settings JSON> <game> <frames> <out.txt> [<waterbox.config>]
 """
-import importlib.util
 import json
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-spec = importlib.util.spec_from_file_location("lmp_import", os.path.join(HERE, "..", "..", "tools", "lmp-import.py"))
-imp = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(imp)
 
 
 def values_for(t, p, game, s):
@@ -29,7 +31,8 @@ def values_for(t, p, game, s):
     v[P + "Run Speed"] = 50 if t % 120 < 60 else (-25 if t % 120 < 70 else (100 if t % 240 == 115 else 0))
     v[P + "Strafe Speed"] = 40 if t % 90 < 15 else (-127 if t % 333 == 12 else 0)
     v[P + "Turn Speed"] = (3 if t % 50 < 10 else -2 if t % 50 < 18 else 0)
-    v[P + "Turn Speed Frac."] = (t * 37) % 256 if t % 7 == 0 else 0
+    if s.get("turningResolution", "16 bits (longtics)").startswith("16"):
+        v[P + "Turn Speed Frac."] = (t * 37) % 256 if t % 7 == 0 else 0
     if 200 <= t % 300 < 230:
         v[P + "Strafe"] = True
         v[P + "Turn Right"] = True    # strafe50
@@ -68,18 +71,22 @@ def main():
         sys.exit(__doc__)
     s = json.load(open(sys.argv[1]))
     game, frames, out = sys.argv[2], int(sys.argv[3]), sys.argv[4]
-    decl = imp.Declaration.load(config=sys.argv[5] if len(sys.argv) == 6 else None)
-    full = {k: d.get("default") for k, d in decl.settings.items()}
-    full.update(s)
-    full["game"] = game
-    groups = imp.active_inputs(decl, game, full)
+    cfg = json.load(open(sys.argv[5] if len(sys.argv) == 6 else os.path.join(HERE, "..", "waterbox.config")))
+    ctl = next(m for m in cfg["machines"] if m["when"][0] == game)["input"]
+    port = lambda n: int(re.match(r"P(\d+) ", n).group(1)) if re.match(r"P\d+ ", n) else 0
+    groups = [[] for _ in range(5)]
+    for a in ctl["axes"]:
+        groups[port(a["name"])].append((a["name"], a))
+    for b in ctl["buttons"]:
+        groups[port(b)].append((b, None))
+    present = [s.get("player%dPresent" % p, p == 1) for p in range(1, 5)]
     key = "".join("#" + "".join(n + "|" for n, _ in g) for g in groups)
     lines = []
     for t in range(frames):
         v = {}
         for p in range(1, 5):
-            if full.get("player%dPresent" % p):
-                v.update(values_for(t, p, game, full))
+            if present[p - 1]:
+                v.update(values_for(t, p, game, s))
         line = "|"
         for g in groups:
             for n, a in g:
@@ -87,7 +94,7 @@ def main():
                     x = v.get(n, a.get("neutral", 0))
                     line += "%5d," % max(a["min"], min(a["max"], x))
                 else:
-                    line += imp.mnemonic(n) if v.get(n) else "."
+                    line += "X" if v.get(n) else "."
             line += "|"
         lines.append(line)
     with open(out, "w") as f:

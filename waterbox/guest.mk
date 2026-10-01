@@ -32,12 +32,13 @@ DSDA_CFLAGS := $(WBFLAGS) $(DSDA_CFLAGS_COMMON) -w
 DSDA_CXXFLAGS := $(WBFLAGS) $(DSDA_CXXFLAGS_COMMON) $(CXXINCS) -fexceptions -w
 ZLIB_CFLAGS := $(WBFLAGS) $(ZLIB_CFLAGS_COMMON) -w
 CORE_CFLAGS := $(WBFLAGS) $(CORE_CFLAGS_COMMON) $(MBINCS) -I. -Wall -Wno-unused-function
+CORE_CXXFLAGS := $(WBFLAGS) $(DSDA_CXXFLAGS_COMMON) $(CXXINCS) $(MBINCS) -I. -fexceptions -Wall -Wextra
 
-$(call flags_stamp,$(B),$(CC) | $(CXX) | $(DSDA_CFLAGS) | $(DSDA_CXXFLAGS) | $(ZLIB_CFLAGS) | $(CORE_CFLAGS))
+$(call flags_stamp,$(B),$(CC) | $(CXX) | $(DSDA_CFLAGS) | $(DSDA_CXXFLAGS) | $(ZLIB_CFLAGS) | $(CORE_CFLAGS) | $(CORE_CXXFLAGS))
 
 DSDA_OBJS := $(patsubst $(DSDA)/%.c,$(B)/dsda/%.o,$(DSDA_C_SRCS)) $(patsubst $(DSDA)/%.cpp,$(B)/dsda/%.o,$(DSDA_CXX_SRCS))
 ZLIB_OBJS := $(patsubst $(ZLIB)/%.c,$(B)/zlib/%.o,$(ZLIB_SRCS))
-CORE_OBJS := $(addprefix $(B)/core/,$(addsuffix .o,$(CORE_C_NAMES)))
+CORE_OBJS := $(addprefix $(B)/core/,$(addsuffix .o,$(CORE_C_NAMES) $(CORE_CXX_NAMES)))
 
 all: $(B)/core.wbx $(WAD_DATA)
 
@@ -61,6 +62,10 @@ $(B)/zlib/%.o: $(ZLIB)/%.c $(B)/flags | $(SR)/lib/libstdc++.a
 $(B)/core/%.o: %.c $(CORE_HDRS) $(PATCH_STAMP) $(B)/flags | $(SR)/lib/libstdc++.a
 	@mkdir -p $(dir $@)
 	$(CC) $(CORE_CFLAGS) -c -o $@ $<
+
+$(B)/core/%.o: %.cpp $(CORE_HDRS) $(B)/flags | $(SR)/lib/libstdc++.a
+	@mkdir -p $(dir $@)
+	$(CXX) $(CORE_CXXFLAGS) -c -o $@ $<
 
 # the guest kit's link recipe (the DOSBox-X core's): the large code model's
 # --no-relax, the weak pthread pulls libgcc_eh needs, cxxglue for the unwinder

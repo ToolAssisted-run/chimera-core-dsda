@@ -134,6 +134,22 @@ static void build_controller(int format, struct dsda_controller *c)
 	add_input(c->axes, &c->naxes, "Camera Fly", C_CAMERA_FLY, 0, INT_MIN + 1, INT_MAX, 0);
 }
 
+int dsda_input_active(const struct dsda_input *in, int is_axis, const struct dsda_activity *a)
+{
+	if (in->port && !a->present[in->port - 1]) return 0;
+	if (is_axis)
+	{
+		if (in->control == C_TURN_FRAC && !a->longtics) return 0;
+		if (in->control == C_FREE_LOOK && !a->extended_commands) return 0;
+	}
+	else
+	{
+		if (in->control == C_EX_JUMP && !a->extended_commands) return 0;
+		if ((in->control == C_GOD || in->control == C_NOCLIP) && a->extended_commands < 2) return 0;
+	}
+	return 1;
+}
+
 const struct dsda_controller *dsda_controller(int format)
 {
 	static int built;

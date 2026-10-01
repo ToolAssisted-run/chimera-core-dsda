@@ -15,14 +15,15 @@ DSDA_CFLAGS := $(DSDA_CFLAGS_COMMON) -g -w
 DSDA_CXXFLAGS := $(DSDA_CXXFLAGS_COMMON) -g -w
 ZLIB_CFLAGS := $(ZLIB_CFLAGS_COMMON) -w
 CORE_CFLAGS := $(CORE_CFLAGS_COMMON) $(MBINCS) -I. -g -Wall -Wno-unused-function -DDSDA_GATE_HOOKS
+CORE_CXXFLAGS := $(DSDA_CXXFLAGS_COMMON) $(MBINCS) -I. -g -Wall -Wextra
 
-$(call flags_stamp,$(B),$(DSDA_CFLAGS) | $(DSDA_CXXFLAGS) | $(ZLIB_CFLAGS) | $(CORE_CFLAGS))
+$(call flags_stamp,$(B),$(DSDA_CFLAGS) | $(DSDA_CXXFLAGS) | $(ZLIB_CFLAGS) | $(CORE_CFLAGS) | $(CORE_CXXFLAGS))
 
 DSDA_OBJS := $(patsubst $(DSDA)/%.c,$(B)/dsda/%.o,$(DSDA_C_SRCS)) $(patsubst $(DSDA)/%.cpp,$(B)/dsda/%.o,$(DSDA_CXX_SRCS))
 ZLIB_OBJS := $(patsubst $(ZLIB)/%.c,$(B)/zlib/%.o,$(ZLIB_SRCS))
-CORE_OBJS := $(addprefix $(B)/core/,$(addsuffix .o,$(CORE_C_NAMES)))
+CORE_OBJS := $(addprefix $(B)/core/,$(addsuffix .o,$(CORE_C_NAMES) $(CORE_CXX_NAMES)))
 
-all: $(B)/run-native $(B)/run-wbx $(WAD_DATA)
+all: $(B)/run-native $(B)/run-wbx $(B)/lmp-import $(WAD_DATA)
 
 $(B)/dsda/%.o: $(DSDA)/%.c $(wildcard compat/*.h) $(PATCH_STAMP) $(B)/flags
 	@mkdir -p $(dir $@)
@@ -39,6 +40,14 @@ $(B)/zlib/%.o: $(ZLIB)/%.c $(B)/flags
 $(B)/core/%.o: %.c $(CORE_HDRS) $(PATCH_STAMP) $(B)/flags
 	@mkdir -p $(dir $@)
 	gcc $(CORE_CFLAGS) -c -o $@ $<
+
+$(B)/core/%.o: %.cpp $(CORE_HDRS) $(B)/flags
+	@mkdir -p $(dir $@)
+	g++ $(CORE_CXXFLAGS) -c -o $@ $<
+
+# the importer's command line: the core's importer, the files around it
+$(B)/lmp-import: ../tools/lmp-import.cpp $(B)/core/lmp-import.o $(B)/core/dsda-input.o $(ZLIB_OBJS) lmp-import.h $(B)/flags
+	g++ -std=gnu++17 -O2 -g -Wall -Wextra -I. -I$(ZLIB) -o $@ ../tools/lmp-import.cpp $(B)/core/lmp-import.o $(B)/core/dsda-input.o $(ZLIB_OBJS)
 
 $(B)/core/run-native.o: run-native.c gate-harness.h dsda-driver.h dsda-input.h $(B)/flags
 	@mkdir -p $(dir $@)

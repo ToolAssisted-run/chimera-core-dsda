@@ -52,6 +52,8 @@ ZLIB_CFLAGS_COMMON := -std=gnu11 -O2 -DNDEBUG -I$(ZLIB)
 # ---- the core: its platform layer (platform/) and the driver
 PLATFORM_NAMES := i_main i_video sdl-shim stubs detmath
 CORE_C_NAMES := $(addprefix platform/,$(PLATFORM_NAMES)) dsda-input dsda-driver wbx-entry
+# the demo importer (ImportMovie's, and tools/lmp-import.cpp's)
+CORE_CXX_NAMES := lmp-import
 CORE_HDRS := $(wildcard *.h) $(wildcard platform/*.h) $(wildcard compat/*.h)
 CORE_CFLAGS_COMMON := $(DSDA_CFLAGS_COMMON)
 

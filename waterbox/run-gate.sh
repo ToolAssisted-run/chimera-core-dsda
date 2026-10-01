@@ -1,12 +1,13 @@
 #!/bin/sh
 # run-gate.sh - the DSDA core's gate: the native reference and core.wbx are
-# the same machine, and a demo imported as a Chimera project (tools/
-# lmp-import.py) is the demo. It runs on Freedoom 0.13.0 (free: the gate fetches
+# the same machine, and a demo imported as a Chimera project (the core's own
+# importer) is the demo. It runs on Freedoom 0.13.0 (free: the gate fetches
 # it, or -f names it) and, when -i names a folder of them, on the IWADs the
 # declaration pins.
 #
 # Every leg says what it compared. A demo is "the engine's own playback, tic
-# for tic" when the project's movie, played by the core, and the engine
+# for tic" when the project's movie (tools/lmp-import.cpp, the core's own
+# importer, waterbox/lmp-import.cpp), played by the core, and the engine
 # playing the .lmp itself (-playdemo, through the native reference's
 # gate-args) agree at every tic on the map, the level time, the game state,
 # the game's RNG, the kills, and each player's position, angle and health.
@@ -32,6 +33,11 @@
 #   imports      what the importer refuses, saying why: a fifth player, a start
 #                from a key frame, a game saved mid-demo, a version no format
 #                has, a versionless demo without its game
+#   export       the core's own ImportMovie (the importer in core.wbx, which a
+#                frontend calls with the demo mounted and the options as
+#                settings): the parts of a demo's project, native = sandbox =
+#                the command line's; a refusal its {"error"}; with -i, Hexen's
+#                warp number from the mounted IWAD's MAPINFO
 #   equivalence  run-native and run-wbx on Freedoom's DEMO4 (Phase 1's E4M6,
 #                three players), imported: every step's picture, sound and lag,
 #                the machine's clock and the Game State domain (the raw record
@@ -112,7 +118,7 @@ native="$root/build/native/run-native"
 wbx="$root/build/native/run-wbx"
 core="$root/build/guest/core.wbx"
 wad="$root/build/dsda-doom.wad"
-importer="$root/tools/lmp-import.py"
+importer="$root/build/native/lmp-import"
 tests="$here/tests"
 
 work="$root/build/gate"
@@ -215,7 +221,7 @@ for i in 1 2 3 4; do props="$props,P$i.X,P$i.Y,P$i.Z,P$i.Angle,P$i.Health"; done
 import_check() {
 	d="$1"; lmp="$2"; leg="$3"; shift 3
 	mkdir -p "$d"
-	if ! python3 "$importer" "$lmp" -o "$d/p.chimeraProject" --wads "$work/files" "$@" 2> "$d/import.err"; then
+	if ! "$importer" "$lmp" -o "$d/p.chimeraProject" --wads "$work/files" "$@" 2> "$d/import.err"; then
 		fail "$leg: $(basename "$lmp") does not import: $(tail -1 "$d/import.err")"; return 0
 	fi
 	if ! n=$(python3 "$tests/project-work.py" "$d/p.chimeraProject" "$d/m" "$wad" "$work/files" 2> "$d/work.err"); then
@@ -350,7 +356,7 @@ refuse_import() { # refuse_import <craft> <source> <expected> <what> [importer a
 	k="$1"; src="$2"; want="$3"; what="$4"; shift 4
 	[ -f "$fmt/$src/rec.lmp" ] || { fail "imports: $what - no $src recording"; return 0; }
 	python3 "$tests/craft-demo.py" "$k" "$fmt/$src/rec.lmp" "$ref/$k.lmp"
-	if out="$(python3 "$importer" "$ref/$k.lmp" --info "$@" 2>&1)"; then
+	if out="$("$importer" "$ref/$k.lmp" --info "$@" 2>&1)"; then
 		fail "imports: $what - imported"
 	elif echo "$out" | grep -q -- "$want"; then
 		pass "imports: $what - $(echo "$out" | head -1 | sed 's/^[^:]*: //')"
@@ -363,6 +369,39 @@ refuse_import keyframe cl21-dsda "starts from a key frame" "a start from a key f
 refuse_import excmdsave cl21-dsda "saves or loads a game" "a game saved mid-demo" --version $fdv
 refuse_import badversion cl2 "no demo format dsda-doom knows" "a version no format has" --version $fdv
 refuse_import doom12 cl2 "does not say which IWAD" "a versionless demo without its game"
+
+echo "== export (the core's ImportMovie)"
+# export <name> <demo> <settings JSON> <command-line arguments> [file=mounted name]...
+export_check() {
+	n="$1"; lmp="$2"; set_="$3"; cli="$4"; shift 4
+	d="$work/export/$n"
+	mkdir -p "$d"
+	cp "$lmp" "$d/movie"
+	printf '%s' "$set_" > "$d/settings"
+	for f in "$@"; do cp "${f%%=*}" "$d/${f#*=}"; done
+	"$native" "$d" --import > "$d/native.json" 2> "$d/native.err" || true
+	"$wbx" "$core" "$d" --import 2>/dev/null | grep -v '^\[' > "$d/wbx.json" || true
+	"$importer" "$lmp" $cli --info > "$d/cli.json" 2> "$d/cli.err" || true
+	if [ -s "$d/native.json" ] && cmp -s "$d/native.json" "$d/wbx.json" && cmp -s "$d/native.json" "$d/cli.json"; then
+		pass "export: $n - ImportMovie native = sandbox = the command line ($(head -c 300 "$d/native.json" | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-90)...)"
+	else
+		fail "export: $n - native, sandbox and the command line differ"
+	fi
+}
+export_check freedoom2-DEMO1 "$work/demo2-1/freedoom2-DEMO1.lmp" '{"importVersion": "freedoom2-0.13.0", "importNoPwads": true}' "--version freedoom2-0.13.0 --no-pwads"
+[ -f "$fmt/cl21-dsda/rec.lmp" ] && export_check cl21-dsda "$fmt/cl21-dsda/rec.lmp" '{"importIwad": "freedoom2.wad"}' "--iwad $fd2" "$fd2=freedoom2.wad"
+[ -f "$ref/players5.lmp" ] && {
+	mkdir -p "$work/export/refused"
+	cp "$ref/players5.lmp" "$work/export/refused/movie"
+	printf '{"importVersion": "freedoom2-0.13.0"}' > "$work/export/refused/settings"
+	if out="$("$native" "$work/export/refused" --import 2>/dev/null)"; then
+		fail "export: a refused demo - ImportMovie succeeded"
+	elif echo "$out" | grep -q '^{"error": "players 5 are in the game; the core has four"}'; then
+		pass "export: a refused demo - $out"
+	else
+		fail "export: a refused demo - $out"
+	fi
+}
 
 echo "== equivalence (Freedoom's DEMO4, three players)"
 eq="$work/demo1-4/m"
@@ -496,7 +535,7 @@ if [ -n "$chimera_run" ]; then
 		tail -5 "$work/package.log"; fail "engine: the package did not build"; }
 	ed="$work/engine"
 	mkdir -p "$ed"
-	python3 "$importer" "$work/demo2-1/freedoom2-DEMO1.lmp" --version freedoom2-0.13.0 --no-pwads --package "$work/package/dsda.chimeraCore" -o "$ed/p.chimeraProject" 2> "$ed/import.err"
+	"$importer" "$work/demo2-1/freedoom2-DEMO1.lmp" --version freedoom2-0.13.0 --no-pwads --package "$work/package/dsda.chimeraCore" -o "$ed/p.chimeraProject" 2> "$ed/import.err"
 	n=$(python3 "$tests/project-work.py" "$ed/p.chimeraProject" "$ed/m" "$wad" "$work/files")
 	"$wbx" "$core" "$ed/m" --frames "$n" --movie "$ed/m/movie.txt" --dump-domain "Game State" "$ed/harness.gs" > /dev/null 2>&1
 	( cd "$ed" && "$chimera_run" --project "$ed/p.chimeraProject" "$work/package/dsda.chimeraCore" --files "$work/files" --firmware "freedoom2.wad=$fd2" --dump "Game State=$ed/engine.gs" ) > "$ed/engine.out" 2>&1 || true
@@ -554,6 +593,9 @@ PY
 				fcase hexen-dsda "{\"version\": \"$version\", \"extendedCommands\": \"On, with casual features\", \"player1Class\": \"Mage\"}" -dsdademo "" "$version" hexen
 				craft_raven hexen hexen-cleric "$version" ;;
 		esac
+		if [ "$game" = hexen ] && [ -f "$work/iwad-$version-DEMO3/$version-DEMO3.lmp" ]; then
+			export_check hexen-DEMO3 "$work/iwad-$version-DEMO3/$version-DEMO3.lmp" "{\"importVersion\": \"$version\"}" "--version $version --wads $work/files" "$f=$id"
+		fi
 		[ -n "$first" ] || continue
 		dd="$first/m"
 		[ -d "$dd" ] || continue

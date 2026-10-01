@@ -59,6 +59,7 @@ struct gate_core
 	int (*axis_active)(int32_t index);     /* optional: IsAxisActive */
 	uint64_t (*midi_hash)(void);           /* optional: what the MT-32 was sent */
 	uint64_t (*midi_bytes)(void);
+	const char *(*import_movie)(void);     /* optional: ImportMovie (the --import mode) */
 };
 
 #define GATE_MAX_PRESS 64
@@ -89,6 +90,7 @@ struct gate_opts
 	const char *frameHashes; /* each step's picture hash, a line each */
 	int turbo;
 	long turboSettle;
+	int import;              /* --import: the core's ImportMovie, before any Init, printed */
 };
 
 static uint64_t gate_fnv(uint64_t h, const void *p, size_t n)
@@ -363,6 +365,15 @@ static int gate_write_tga(const char *path, const uint32_t *bgra, int w, int h)
 
 static int gate_run(const struct gate_core *c, const struct gate_opts *o)
 {
+	if (o->import)
+	{
+		/* a frontend's import: the demo mounted as "movie", the options in the
+		 * settings, the core loaded and not started */
+		const char *json = c->import_movie ? c->import_movie() : NULL;
+		if (!json) { fprintf(stderr, "the core has no ImportMovie\n"); return 1; }
+		fputs(json, stdout);
+		return strncmp(json, "{\"error\":", 9) == 0 ? 1 : 0;
+	}
 	if (c->init() != 1)
 	{
 		fprintf(stderr, "Init failed: %s\n", c->load_error ? c->load_error() : "?");
@@ -594,6 +605,7 @@ static int gate_parse_opts(int argc, char **argv, int first, struct gate_opts *o
 		else if (!strcmp(argv[i], "--audio") && i + 1 < argc) o->audioOut = argv[++i];
 		else if (!strcmp(argv[i], "--frame-hashes") && i + 1 < argc) o->frameHashes = argv[++i];
 		else if (!strcmp(argv[i], "--turbo")) o->turbo = 1;
+		else if (!strcmp(argv[i], "--import")) o->import = 1;
 		else if (!strcmp(argv[i], "--turbo-settle") && i + 1 < argc) o->turboSettle = strtol(argv[++i], 0, 0);
 		else if (!strcmp(argv[i], "--rerecord") || !strcmp(argv[i], "--session")) ; /* run-wbx's */
 		else if (!strcmp(argv[i], "--session-at") && i + 1 < argc) i++;                /* run-wbx's */

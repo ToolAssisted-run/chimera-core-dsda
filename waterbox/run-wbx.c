@@ -70,6 +70,7 @@ static intfn g_GetVsyncNumerator, g_GetVsyncDenominator;
 static u64fn g_GetCycleCount;
 static voidfn_i g_SetRenderingEnabled;
 static ptrfn g_GetGameProperties;
+static ptrfn g_ImportMovie;
 typedef int (MB_GUEST_ABI *intfn_i32)(int32_t);
 static intfn_i32 g_IsButtonActive, g_IsAxisActive;
 static int g_rerecord;
@@ -222,6 +223,7 @@ static void resolve_exports(void)
 	g_GetVsyncDenominator = (intfn)proc(g_host, "GetVsyncDenominator");
 	g_GetCycleCount = (u64fn)proc(g_host, "GetCycleCount");
 	g_GetGameProperties = (ptrfn)proc(g_host, "GetGameProperties");
+	g_ImportMovie = (ptrfn)proc(g_host, "ImportMovie");
 	g_IsButtonActive = (intfn_i32)proc(g_host, "IsButtonActive");
 	g_IsAxisActive = (intfn_i32)proc(g_host, "IsAxisActive");
 }
@@ -254,6 +256,16 @@ int main(int argc, char **argv)
 	build_host();
 	resolve_exports();
 	if (chdir(g_workdir) != 0) { perror(g_workdir); return 1; }
+
+	/* a frontend's import: the core loaded and not started, the demo mounted as
+	 * "movie" (every work dir file is), the options in the settings */
+	if (o.import)
+	{
+		const char *json = g_ImportMovie ? (const char *)g_ImportMovie() : NULL;
+		if (!json) { fprintf(stderr, "the core has no ImportMovie\n"); return 1; }
+		fputs(json, stdout);
+		return strncmp(json, "{\"error\":", 9) == 0 ? 1 : 0;
+	}
 
 	struct gate_core c = {
 		.init = core_init,

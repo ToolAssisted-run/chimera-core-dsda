@@ -61,10 +61,11 @@ At 320x200 drawing is a small part of a step; at the large scale factors turbo s
 
 ## The demo importer (2026-10-01)
 
-`tools/lmp-import.py` reads every format dsda-doom plays and makes the demo a project: its settings, its IWAD
-as the firmware, its PWADs in the slot, its tics as the movie. What dsda's playback decides from a demo - the
-header (G_ReadDemoHeaderEx), dsda's own header and extended commands (dsda/demo.c), the footer's arguments
-(dsda/exdemo.c) - the core now takes as settings, so a project can say all of it:
+The importer (first in Python, now `waterbox/lmp-import.cpp` - see below) reads every format dsda-doom plays and
+makes the demo a project: its settings, its IWAD as the firmware, its PWADs in the slot, its tics as the movie.
+What dsda's playback decides from a demo - the header (G_ReadDemoHeaderEx), dsda's own header and extended
+commands (dsda/demo.c), the footer's arguments (dsda/exdemo.c) - the core now takes as settings, so a project can
+say all of it:
 
 - **The axes take a tic command's whole range**: BizHawk's Run and Strafe Speed stop at 50 and Weapon Select at
   7, which cannot name the chainsaw (key 8) or the super shotgun; hand-made and -turbo demos hold more. The
@@ -106,6 +107,22 @@ header (G_ReadDemoHeaderEx), dsda's own header and extended commands (dsda/demo.
   232 of the DSDA archive's for the WADs at hand (the rest: files their footers name and the folder lacks, a
   format dsda does not play, an unnamed PWAD, the unflagged longtics) the same, locally.
 
+## The importer in the core (2026-10-01)
+
+The importer is C++ now, `waterbox/lmp-import.cpp`, and part of the core: compiled into core.wbx and the native
+reference like the driver, it answers the export `ImportMovie` - a frontend loads the core, mounts the demo as
+`movie` and the WADs it reads by their names, gives the options as settings, and calls it instead of `Init`;
+the parts of the project come back as JSON. Chimera keeps no core-specific code (its movie importers were
+removed with the rest), so a core that imports its own demos is how an importer can reach a person; the
+frontend's side - a menu that offers a package's importer for a file - is Chimera's to add. What the importer
+needs to read it asks for by name (the IWAD's hash for the release, Hexen's MAPINFO for the warp number, the
+PWADs' hashes for the manifest), so the same code runs in the sandbox and in `tools/lmp-import.cpp`, the
+command line that finds the files in folders and writes the `.chimeraProject`. The settings' options come from
+the declaration (`dsda-options.h`, generated with it) and the active inputs from the driver's own rule
+(`dsda_input_active`), so the importer cannot drift from the core. Before the Python went, both importers
+imported every demo at hand - the gate's, the IWADs', quickerDSDA's, the DSDA archive's: 449 - to the same
+projects and the same refusals.
+
 ## Decisions
 
 - **Upstream, not BizHawk's fork**: the latest engine, its fixes and its formats (MBF21, UMAPINFO), with
@@ -124,7 +141,9 @@ header (G_ReadDemoHeaderEx), dsda's own header and extended commands (dsda/demo.
 
 ## Left
 
-- **The importer in Chimera**: a menu entry that runs it (or its logic in C#) and opens the project.
+- **The importer in Chimera**: a frontend call of the core's `ImportMovie` (a session that loads the core,
+  mounts the demo and the WADs, sets the options and calls the export instead of `Init`), and a menu that offers
+  it for a file a package claims (`.lmp`).
 - **What the importer refuses**: a start from a key frame would need the frame (dsda's saved game in the
   demo) as the movie's start; saves and loads mid-demo would need savegames inside the sandbox; Hexen's
   players 5-8 and Boom's 5-32 the core's ports.
