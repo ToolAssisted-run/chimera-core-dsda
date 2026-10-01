@@ -46,6 +46,8 @@ def values_for(t, p, game, s):
         v[P + "Fly"] = 3 if t % 70 in (5, 6, 7) else 0
         if t % 150 == 75:
             v[P + "Artifact"] = (t // 150) % (11 if game == "heretic" else 33)
+        if t in (650, 700):
+            v[P + "Special"] = 3 if t == 650 else 2    # special commands with fire and use bits
         v[P + "Inventory Right"] = t % 177 == 30
         v[P + "Use Artifact"] = t % 177 == 31
         if game == "hexen":

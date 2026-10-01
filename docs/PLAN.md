@@ -76,7 +76,13 @@ header (G_ReadDemoHeaderEx), dsda's own header and extended commands (dsda/demo.
   the input log's reader key them by name); the import found it when Hexen's DEMO1 used an artifact the movie
   also "pressed". The axis is "Artifact" here.
 - **Pause** is each player's, as the command's (BT_SPECIAL | BT_PAUSE: the player whose command it is loses
-  its buttons that tic); dsda ignores the other specials, and the importer drops them with their buttons.
+  its buttons that tic); in Doom dsda ignores the other specials and zeroes their buttons. Heretic and Hexen
+  keep a special command's low bits until the player thinks - `P_DeathThink` reads its use (a dead player
+  respawns), the intermission and finale its fire and use - so their controllers have Special, those seven
+  bits. A Hexen+ demo found it: read without its unflagged longtics, its garbage held 0xFF, which respawned
+  the player in playback and not in the movie.
+- **Unflagged longtics**: Hexen+ recorded `-longtics` demos before vvHeretic's header flag; nothing in the
+  file says so, and dsda plays them right only with `-longtics`. The importer's `--longtics` says it.
 - **The option block** of a Boom-or-later demo (demo insurance, monster options, the comp flags) changes the
   game from the first tic; PrBoom+'s recordings carry demo insurance, which dsda's own no longer do. It is a
   string setting, the block as hex, applied by `G_ReadOptions` itself before the first `G_InitNew`, where
@@ -96,9 +102,9 @@ header (G_ReadDemoHeaderEx), dsda's own header and extended commands (dsda/demo.
 - **Deathmatch without player one** crashed in vanilla's `G_CheckSpot` (patch 0013): such a demo would crash
   dsda's playback too, but settings must not crash the core.
 - **What the gate proves**: every recordable format recorded by the engine, every other one crafted from those,
-  the IWADs' own demos, all imported and played = `-playdemo`, tic for tic; quickerDSDA's 39 demos and the
-  DSDA archive's (vanilla, PrBoom+, DSDA-Doom, Crispy, Chocolate, CNDoom, Woof, XDRE, TASDoom, MBF) the same,
-  locally.
+  the IWADs' own demos, all imported and played = `-playdemo`, tic for tic; quickerDSDA's demos and 218 of
+  232 of the DSDA archive's for the WADs at hand (the rest: files their footers name and the folder lacks, a
+  format dsda does not play, an unnamed PWAD, the unflagged longtics) the same, locally.
 
 ## Decisions
 

@@ -69,8 +69,9 @@ where its input format and its test movies come from.
   Weapon Select the weapon's number + 1 up to 16 (the axis is the weapon itself, where a Weapon Select key
   finds the chainsaw and the super shotgun as the keys of the game do), Artifact any of Hexen's 32 (BizHawk
   calls it Use Artifact, the name of a button too: one name, two columns no frontend tells apart); each
-  player has Pause (the command's pause); and with the Extended Commands setting dsda's own, Jump and Free
-  Look, and God and No Clip with its casual features.
+  player has Pause (the command's pause) and, in Heretic and Hexen, Special - a special command's low seven
+  bits, which those games read before they clear them (a dead player's use, the intermission's skip); and with
+  the Extended Commands setting dsda's own, Jump and Free Look, and God and No Clip with its casual features.
 - **Settings**: BizHawk's, by the same names and values - the compatibility level (Doom-format games), skill,
   multiplayer mode, initial episode and map, the monster flags, pistol start, co-op spawns, chained episodes,
   always run, the melt, turning resolution (shorttics or longtics), the mouse sensitivities, strafe50, Prevent
@@ -114,8 +115,9 @@ TASDoom (its own byte order), 1.9 longtics, Boom 2.00-2.02 (and its compatibilit
 jump, free look, god, no clip), PrBoom+um's UMAPINFO header, Heretic and Hexen (their header's respawn,
 longtics and no-monsters bits; Hexen's classes, and its map as the warp number MAPINFO gives it - the core's
 Initial Map is what `-warp` takes, as BizHawk's), the footer's arguments (`-solo-net`, `-coop_spawns`,
-`-chain_episodes`, `-emulate`, `-spechit`, the overflows' `-set`), special commands (the pause; a saved game's,
-which dsda ignores) and the join marker. The melt is off in the project, as BizHawk's importers have it: a
+`-chain_episodes`, `-emulate`, `-spechit`, the overflows' `-set`), special commands (the pause; in Doom the
+others, which dsda ignores; in Heretic and Hexen their low bits) and the join marker. `--longtics` reads a
+Heretic or Hexen demo recorded with `-longtics` whose header does not say so (Hexen+'s). The melt is off in the project, as BizHawk's importers have it: a
 demo's tics are the game's. Refused, saying why: more than four players, a start from a key frame (a saved
 game in the demo), a game saved or loaded mid-demo, a format dsda-doom does not play, a versionless demo
 without its game, a PWAD the footer names and no folder has.
@@ -129,6 +131,20 @@ TNT's three, Plutonia's three, Chex Quest's four. So do all 39 of quickerDSDA's 
 all of Doom II (178,756 tics), TNT (305,108) and Plutonia (213,894), each through its 32 maps with the secret
 levels to MAP30 (Doom II's and TNT's seen to the game's end), the four Ultimate Doom UV-max episodes (each to its E?M8's end), Freedoom 0.11's
 episode 1 in one demo (75,090 tics) and its single levels, Doom II's single-level and four-player demos.
+
+**Every demo imports as itself** (`tools/lmp-import.py`): imported, the project's movie plays as the engine
+plays the demo, tic for tic - the IWADs' own demos (Heretic's and Hexen's too), all of quickerDSDA's (its
+full-game runs through the importer as well), a demo of every format the engine records and of every other
+format it plays, made from those (the gate), and 218 of 232 demos from the DSDA archive for the IWADs and PWADs
+at hand, recorded in Doom2.exe, DOOM.EXE, Heretic, Hexen, Hexen+, CHexen, jHexen, Chocolate Doom, Chocolate
+Hexen, Crispy Doom, PrBoom+ 2.5.1.x (complevels 2, 3, 4, 11), DSDA-Doom 0.24-0.29, Woof, CNDoom, Nyan Doom,
+Sprinkled Doom, MBF, XDRE and TASDoom TAS work: Doom II, The
+Ultimate Doom, TNT, Plutonia, Heretic, Hexen (its hub demos too), Chex Quest, Eviternity (complevel 11, its
+players' option blocks), Sigil, Plutonia 2. The other 14: twelve refused for a file the footer names and the
+folder lacks (Woof's extras.wad, a renamed Eviternity, PL2's .deh) or a format dsda-doom does not play
+either (a version byte of 70); one whose PWAD no footer names (it was not given); one Hexen+ demo recorded with
+`-longtics` that its header does not say - with `--longtics` it imports and plays, 11,558 tics through the
+hub.
 
 Over them: native == sandbox (every step's picture, sound and lag, the Game State), a savestate before every
 step, a new host in the middle; Heretic and Hexen from their IWADs (native == sandbox, session; their demos are

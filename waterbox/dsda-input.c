@@ -55,6 +55,10 @@ static void build_controller(int format, struct dsda_controller *c)
 			 * button that uses the inventory's; a name the two share is a
 			 * column the frontend cannot tell apart */
 			AXIS("Artifact", C_USE_ARTIFACT_AXIS, 0, 63, 0);
+			/* a special command (BT_SPECIAL) with these low seven bits: Heretic
+			 * and Hexen read them before they clear them (a dead player's use,
+			 * the intermission's skip); 1 is Pause's */
+			AXIS("Special", C_SPECIAL, 0, 127, 0);
 		}
 		/* dsda's extended command: the free look's change, a short (-32768
 		 * recentres) */

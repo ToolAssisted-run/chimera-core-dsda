@@ -54,6 +54,8 @@ usage: lmp-import.py <demo.lmp> [-o <out.chimeraProject>] [--version <id> | --iw
                      name them (it wins over the footer)
   --no-pwads         none, whatever the footer names (an IWAD's own demos: a fix
                      their authors recorded with, now in the IWAD)
+  --longtics         a Heretic or Hexen demo recorded with -longtics whose header
+                     does not say so (Hexen+'s, before vvHeretic's flag)
   --package          the core package, for its declaration and identity (its
                      name, version and hash pin the project); --config a
                      waterbox.config instead (the repo's by default)
@@ -139,7 +141,7 @@ def _need(data, at, n, what):
         raise DemoError("the demo ends inside its %s" % what)
 
 
-def parse_demo(data, family_hint=None):
+def parse_demo(data, family_hint=None, longtics=False):
     """the demo in data; family_hint ('doom', 'heretic', 'hexen') is the game's,
     which a versionless header needs (1.2, Heretic and Hexen all start with the
     skill)"""
@@ -227,7 +229,7 @@ def parse_demo(data, family_hint=None):
             # vvHeretic's special bits on player one's byte, OR'd with the
             # footer's flags (the monster flags are not in the header otherwise)
             d.raven_bits = bits
-            d.longtics = bool(bits & DEMOHEADER_LONGTICS)
+            d.longtics = bool(bits & DEMOHEADER_LONGTICS) or longtics
             d.format += family.capitalize()
     else:
         # Boom and later: a signature, then the header, then the options
@@ -581,7 +583,8 @@ def resolve_version(demo, decl, footer, version, iwad, wad_dirs):
                        ", ".join(candidates) if candidates else "none fits"))
 
 
-def import_demo(data, decl, version=None, iwad=None, wad_dirs=(), pwads=None, monster_flags=(), name="demo", no_pwads=False):
+def import_demo(data, decl, version=None, iwad=None, wad_dirs=(), pwads=None, monster_flags=(), name="demo", no_pwads=False,
+                longtics=False):
     """the project's parts: settings, firmware, files, input log, notes"""
     footer = footer_values([])
     family_hint = None
@@ -591,7 +594,9 @@ def import_demo(data, decl, version=None, iwad=None, wad_dirs=(), pwads=None, mo
         v = decl.version_of_sha1(sha1_of(iwad))
         if v:
             family_hint = {"heretic": "heretic", "hexen": "hexen"}.get(decl.version_game[v], "doom")
-    demo = parse_demo(data, family_hint)
+    demo = parse_demo(data, family_hint, longtics)
+    if longtics and demo.family == "doom":
+        raise DemoError("--longtics is for Heretic and Hexen demos; a Doom demo's format says its turning")
     footer = footer_values(demo.footer_args, demo.footer_text)
     version, iwad_path = resolve_version(demo, decl, footer, version, iwad, wad_dirs)
     game = decl.version_game[version]
@@ -758,10 +763,15 @@ def input_log(demo, decl, game, s):
             values[P + "Turn Speed Frac."] = t["frac"]
             b = t["buttons"]
             if b & BT_SPECIAL:
-                # a special command: only its pause does anything (dsda's
-                # G_Ticker), and its buttons are no buttons
-                if (b & BT_SPECIALMASK) == BT_PAUSE:
-                    values[P + "Pause"] = True
+                # a special command: in Doom only its pause does anything
+                # (dsda's G_Ticker), and it has no buttons after; the Raven
+                # games keep its low bits until the player thinks (a dead
+                # player's use, the intermission's skip read them) - Special
+                if demo.family == "doom" or (b & 0x7F) in (0, 1):
+                    if (b & BT_SPECIALMASK) == BT_PAUSE:
+                        values[P + "Pause"] = True
+                else:
+                    values[P + "Special"] = b & 0x7F
             else:
                 values[P + "Fire"] = bool(b & BT_ATTACK)
                 values[P + "Use"] = bool(b & BT_USE)
@@ -857,6 +867,7 @@ def main():
     ap.add_argument("--wads", action="append", default=[])
     ap.add_argument("--pwad", action="append")
     ap.add_argument("--no-pwads", action="store_true")
+    ap.add_argument("--longtics", action="store_true")
     ap.add_argument("--package")
     ap.add_argument("--config")
     ap.add_argument("--respawn", action="store_true")
@@ -870,7 +881,7 @@ def main():
     flags = [f for f, on in (("-respawn", a.respawn), ("-fast", a.fast), ("-nomonsters", a.nomonsters)) if on]
     try:
         s, fw, files, log, frames, info = import_demo(data, decl, a.version, a.iwad, a.wads, a.pwad, flags,
-                                                     os.path.basename(a.demo), a.no_pwads)
+                                                     os.path.basename(a.demo), a.no_pwads, a.longtics)
     except DemoError as e:
         sys.exit("%s: %s" % (a.demo, e))
     info["source"] = os.path.basename(a.demo)

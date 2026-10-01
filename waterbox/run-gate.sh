@@ -66,7 +66,8 @@
 #                pins: its own demos - Doom's, Doom II's, Final Doom's, Chex
 #                Quest's, Heretic's and Hexen's - imported; Heretic and Hexen
 #                demos recorded by the engine (the Raven header's flags, longtics,
-#                Hexen's classes and warp numbers, co-op, dsda's format); native
+#                Hexen's classes and warp numbers, co-op, dsda's format, special
+#                commands with their low bits); native
 #                = sandbox and session on each IWAD's first demo
 #
 # usage: run-gate.sh [-m <miniBox dir>] [-f <Freedoom 0.13.0 dir>] [-i <IWAD dir>]
@@ -507,6 +508,14 @@ if [ -n "$chimera_run" ]; then
 	fi
 fi
 
+# a Raven recording's special commands with their low bits, crafted: <game> <case> <version>
+craft_raven() {
+	[ -f "$fmt/$2/rec.lmp" ] || return 0
+	mkdir -p "$fmt/craft-special-$1"
+	python3 "$tests/craft-demo.py" "ravenspecial-$1" "$fmt/$2/rec.lmp" "$fmt/craft-special-$1/special-$1.lmp"
+	import_check "$fmt/craft-special-$1/i" "$fmt/craft-special-$1/special-$1.lmp" formats --version "$3"
+}
+
 if [ -n "$iwads" ] && [ -f "$work/iwads" ]; then
 	echo "== iwads ($iwads)"
 	while read -r version game id; do
@@ -537,11 +546,13 @@ PY
 				fcase heretic "{\"version\": \"$version\", $st}" "" "" "$version" heretic
 				fcase heretic-flags "{\"version\": \"$version\", \"monstersRespawn\": true, \"skillLevel\": \"2\", \"initialEpisode\": 2, \"initialMap\": 4}" "" "" "$version" heretic
 				fcase heretic-coop "{\"version\": \"$version\", \"noMonsters\": true, \"player2Present\": true, \"player3Present\": true, $st}" "" "" "$version" heretic
-				fcase heretic-dsda "{\"version\": \"$version\", \"extendedCommands\": \"On, with casual features\"}" -dsdademo "" "$version" heretic ;;
+				fcase heretic-dsda "{\"version\": \"$version\", \"extendedCommands\": \"On, with casual features\"}" -dsdademo "" "$version" heretic
+				craft_raven heretic heretic "$version" ;;
 			hexen)
 				fcase hexen-cleric "{\"version\": \"$version\", \"player1Class\": \"Cleric\", $st}" "" "" "$version" hexen
 				fcase hexen-coop "{\"version\": \"$version\", \"player1Class\": \"Mage\", \"player2Present\": true, \"player4Present\": true, \"player4Class\": \"Cleric\", \"initialMap\": 13}" "" "" "$version" hexen
-				fcase hexen-dsda "{\"version\": \"$version\", \"extendedCommands\": \"On, with casual features\", \"player1Class\": \"Mage\"}" -dsdademo "" "$version" hexen ;;
+				fcase hexen-dsda "{\"version\": \"$version\", \"extendedCommands\": \"On, with casual features\", \"player1Class\": \"Mage\"}" -dsdademo "" "$version" hexen
+				craft_raven hexen hexen-cleric "$version" ;;
 		esac
 		[ -n "$first" ] || continue
 		dd="$first/m"

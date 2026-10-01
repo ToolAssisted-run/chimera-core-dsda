@@ -19,6 +19,10 @@ same. What each makes:
   markers     the join marker (bit 6 without a weapon change) and save-game
               specials on some tics, which dsda's G_Ticker ignores
   umapinfo    PrBoom+um's UMAPINFO header before a demo
+  ravenspecial-heretic, ravenspecial-hexen
+              special commands with their low bits (0x82, 0x83) on some tics of
+              a Heretic or Hexen demo, which those games read before they clear
+              them
 
 and what the importer must refuse:
 
@@ -83,6 +87,17 @@ def craft(kind, d):
         return d[:at] + bytes([d[at] | 0x02, 0]) + d[at + 1:]
     if kind == "badversion":
         return bytes([150]) + d[1:]
+    if kind.startswith("ravenspecial-"):
+        hexen = kind.endswith("hexen")
+        header = 19 if hexen else 7
+        players = sum(1 for i in range(8 if hexen else 4) if d[3 + (2 * i if hexen else i)])
+        step = 7 if d[3] & 0x10 else 6
+        t = bytearray(d)
+        for k in (30, 61, 97, 160):
+            at = header + k * step * players + (step - 3)   # player one's buttons
+            if at < len(t) and t[header + k * step * players] != 0x80:
+                t[at] = 0x83 if k % 2 else 0x82
+        return bytes(t)
     v, start, opt_at, opt_size, players = body_start(d)
     if kind == "players5":
         assert opt_at is not None, "players5 is made from a Boom-or-later demo"

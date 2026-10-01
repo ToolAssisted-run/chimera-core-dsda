@@ -851,9 +851,15 @@ static void player_input(int i)
 			}
 			dest->buttons |= newweapon << BT_WEAPONSHIFT;
 		}
-		/* the command's pause replaces its buttons, as G_BuildTiccmd's sendpause */
-		if (PRESSED(C_PAUSE, port))
-			dest->buttons = BT_SPECIAL | BT_PAUSE;
+		/* the command's pause replaces its buttons, as G_BuildTiccmd's sendpause;
+		 * in the Raven games a special command with any low bits */
+		{
+			const int special = g.version->format != FORMAT_DOOM ? control_value(C_SPECIAL, port) & 0x7f : 0;
+			if (special)
+				dest->buttons = (byte)(BT_SPECIAL | special);
+			else if (PRESSED(C_PAUSE, port))
+				dest->buttons = BT_SPECIAL | BT_PAUSE;
+		}
 		/* dsda's extended commands */
 		if (g.s.extended_commands)
 		{

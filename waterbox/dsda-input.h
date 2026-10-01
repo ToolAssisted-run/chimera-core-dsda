@@ -14,7 +14,10 @@
  * whole range (Run and Strafe Speed a signed byte, Weapon Select any weapon
  * number, the artifact axis any artifact - "Artifact", where BizHawk's shares
  * the Use Artifact button's name), each player has Pause (the command's
- * pause, BT_SPECIAL), and with the extendedCommands setting dsda's extended
+ * pause, BT_SPECIAL) - and in Heretic and Hexen, whose special command keeps
+ * its other bits until the player thinks (a dead player's use, the
+ * intermission's skip read them), Special, the command's low seven bits -
+ * and with the extendedCommands setting dsda's extended
  * commands - Jump and Free Look, and God and No Clip with its casual
  * features - which are inactive otherwise. */
 #ifndef DSDA_INPUT_H
@@ -29,7 +32,7 @@ enum dsda_control
 {
 	/* per player (the player is the entry's port) */
 	C_RUN_SPEED, C_STRAFE_SPEED, C_TURN_SPEED, C_TURN_FRAC, C_WEAPON_SELECT, C_MOUSE_RUN, C_MOUSE_TURN,
-	C_LOOK, C_FLY, C_USE_ARTIFACT_AXIS, C_FREE_LOOK,
+	C_LOOK, C_FLY, C_USE_ARTIFACT_AXIS, C_SPECIAL, C_FREE_LOOK,
 	C_FIRE, C_USE, C_FORWARD, C_BACKWARD, C_TURN_LEFT, C_TURN_RIGHT, C_STRAFE_LEFT, C_STRAFE_RIGHT, C_RUN, C_STRAFE,
 	C_WEAPON_1, C_WEAPON_2, C_WEAPON_3, C_WEAPON_4, C_WEAPON_5, C_WEAPON_6, C_WEAPON_7,
 	C_JUMP, C_END_PLAYER,
