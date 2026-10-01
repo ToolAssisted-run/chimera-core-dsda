@@ -1,5 +1,5 @@
 {
-  "_comment": "A Doom project picks its game and the release of its IWAD (Chimera's System and Version), whose IWAD is the firmware; its PWADs and DeHackEd patches come here, in the order the engine loads them (-file, then -deh).",
+  "_comment": "A Doom project picks its game (Chimera's System), whose IWAD - any release of it - is the firmware; its PWADs and DeHackEd patches come here, in the order the engine loads them (-file, then -deh).",
   "slots": [
     {
       "id": "pwad",

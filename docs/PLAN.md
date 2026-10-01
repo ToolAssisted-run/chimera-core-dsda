@@ -26,8 +26,7 @@ quickerDSDA (JaffarPlus's DSDA, ToolAssisted-run/quickerDSDA) for its movies and
   differ on two frames of 27 movies.
 - **Controllers and settings**: BizHawk's, generated with the declaration (`gen-declaration.py`) from the
   core's own tables (`tools/dump-input.c`); the default keys from BizHawk's `defctrl.json`.
-- **The machines**: one per game (the System), the IWAD's release a setting each machine narrows (the
-  Version), the IWAD that release's firmware.
+- **The machines**: one per game (the System), the game's IWAD - any release - its firmware.
 - **Savestates**: the engine's heap is guest memory; rerecord and session pass (about 7 MB a state on a
   three-player Freedoom level).
 - **The gate** (`waterbox/run-gate.sh`): Freedoom 0.13.0's demos and the gate's own levels, movie ==
@@ -116,8 +115,7 @@ parts of the project come back as JSON. The dialog is the declaration's (`movieI
 draws the settings: the demo, the files and the option each sets, the options), so no Doom lives in Chimera's
 code. Chimera keeps no core-specific code (its movie importers were removed with the rest), so a core that imports
 its own demos is how an importer can reach a person; the frontend's side - a menu that offers a package's importer
-for a file - is Chimera's to add. What the importer needs to read it asks for by name (the IWAD's hash for the
-release, Hexen's MAPINFO for the warp number, the PWADs' hashes for the manifest), so the same code runs in the
+for a file - is Chimera's to add. What the importer needs to read it asks for by name (the IWAD for the game and its hash, Hexen's MAPINFO for the warp number, the PWADs' hashes for the manifest), so the same code runs in the
 sandbox and in `tools/lmp-import.cpp`, the command line that finds the files in folders and writes the
 `.chimeraProject`. The settings' options come from the declaration (`dsda-options.h`, generated with it) and the
 active inputs from the driver's own rule (`dsda_input_active`), so the importer cannot drift from the core. Before
@@ -129,11 +127,14 @@ archive's: 449 - to the same projects and the same refusals.
 - **Upstream, not BizHawk's fork**: the latest engine, its fixes and its formats (MBF21, UMAPINFO), with
   BizHawk's changes as patches; where the two engines differ in play (v0.30's longer "Now entering" screen)
   the demo's behaviour wins (patch 0011).
-- **The Version is a setting** (`version`), each machine narrowing it to its game's releases
-  (`settingOverrides`), declared as `"versionSetting"` for a wizard that shows it beside the System; Chimera
-  shows it on the settings page until then. The IWAD's name is fixed per game - the engine reads the game and
-  its mission from it - so a release's firmware id is that name, declared once per release with its own hash
-  (Chimera's "an id declared many times").
+- **No Version** (2026-10-01, Sergio): a game's IWAD is its firmware whatever its release, the project pinning the
+  file's hash; the compatibility level and the IWAD's content (a fourth episode) say the rules, as for dsda-doom
+  itself. The importer tells the game from the IWAD (a dump the core knows by its hash, else its name, else its
+  lumps) and returns the given file's hash. Before: **the Version was a setting** (`version`), each machine
+  narrowing it to its game's releases (`settingOverrides`), declared as `"versionSetting"` for a wizard that shows
+  it beside the System; Chimera shows it on the settings page until then. The IWAD's name is fixed per game - the
+  engine reads the game and its mission from it - so a release's firmware id is that name, declared once per
+  release with its own hash (Chimera's "an id declared many times").
 - **The compatibility level stays a setting**, as in BizHawk: a demo's own is what the engine would give it
   (the importer, as `G_GetOriginalDoomCompatLevel`: the footer's `-complevel`, else 3 on a game with a fourth
   episode, 4 on Final Doom, 2 otherwise).
@@ -149,6 +150,3 @@ archive's: 449 - to the same projects and the same refusals.
   demo) as the movie's start; saves and loads mid-demo would need savegames inside the sandbox; Hexen's
   players 5-8 and Boom's 5-32 the core's ports.
 - **Exporting a movie as a demo**: the other way, for DSDA's archive.
-- **More releases**: Doom 1.9 (registered and shareware), Doom II 1.666, Heretic 1.3, Hexen 1.0, the BFG and
-  Unity editions, Chex Quest 3 - a line each in `gen-declaration.py` once a dump is at hand to pin.
-- **Chimera's Version selector** (`"versionSetting"`): the wizard's.

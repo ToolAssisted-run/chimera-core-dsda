@@ -6,7 +6,6 @@
 
 static const char *const k_setting_names[] = {
 	"game",
-	"version",
 	"compatibilityLevel",
 	"skillLevel",
 	"multiplayerMode",

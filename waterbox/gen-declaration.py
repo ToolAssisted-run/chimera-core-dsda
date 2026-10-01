@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """gen-declaration.py - the core's declaration, from one place: the games (the
-machines), their IWAD releases (the version setting, each pinning its IWAD as
-firmware), BizHawk's settings, and the controllers (dumped from dsda-input.c,
-the driver's own lists). Writes waterbox.config, file_slots.json and
-dsda-versions.h (the driver's table); the gate checks they are up to date.
+machines, each with its IWAD as firmware - any release of it), BizHawk's
+settings, the controllers (dumped from dsda-input.c, the driver's own lists)
+and the import dialog. Writes waterbox.config, default_keybinds.json,
+file_slots.json, dsda-games.h (the driver's and the importer's table, with the
+IWAD dumps the core has been tested with) and dsda-options.h; the gate checks
+they are up to date.
 
-usage: gen-declaration.py [--check]
+usage: gen-declaration.py [--check | --known-iwads]
 """
 import collections, json, os, re, subprocess, sys, tempfile
 
@@ -24,14 +26,17 @@ GAMES = [
     ("freedoom1", "Freedoom: Phase 1", "doom"),
     ("freedoom2", "Freedoom: Phase 2", "doom"),
 ]
+# each game's IWAD: the name it is mounted under (its firmware id: upstream tells the game and its mission by it,
+# d_main.c AddIWAD), and whether its maps come in episodes (-warp takes an episode then)
+IWAD = {"doom2": ("doom2.wad", False), "doom": ("doom.wad", True), "tnt": ("tnt.wad", False),
+        "plutonia": ("plutonia.wad", False), "heretic": ("heretic.wad", True), "hexen": ("hexen.wad", False),
+        "chex": ("chex.wad", True), "freedoom1": ("freedoom1.wad", True), "freedoom2": ("freedoom2.wad", False)}
 
-# ---- the releases of each game's IWAD: the version setting. The IWAD is
-# mounted under its canonical name (upstream tells the game and its mission
-# by it, d_main.c AddIWAD); each release pins the hash of the dump it was
-# tested with - the wizard's folder scan finds it by that, and a file of the
-# user's own is taken too, the project pinning its hash.
+# ---- IWAD dumps the core has been tested with: no setting - any release of a game's IWAD is its firmware, the
+# project pinning the file's hash, and the compatibility level says the rules. The importer tells a demo's game by
+# these hashes first (then by the file's name and lumps), and the gate finds the IWADs of a folder by them.
 V = collections.namedtuple("V", "id game label iwad sha1 size episodic")
-VERSIONS = [
+KNOWN = [
     V("doom2-1.9", "doom2", "Doom II v1.9", "doom2.wad", "7EC7652FCFCE8DDC6E801839291F0E28EF1D5AE7", 14604584, False),
     V("doom-ultimate", "doom", "The Ultimate Doom v1.9", "doom.wad", "117015379C529573510BE08CF59810AA10BB934E", 12474561, True),
     V("tnt", "tnt", "TNT: Evilution (original release)", "tnt.wad", "139E26D801A64B404B8D898DEFCA10227A61867B", 18222568, False),
@@ -82,9 +87,6 @@ SKILLS = ["1 - I'm too young to die", "2 - Hey, not too rough", "3 - Hurt me ple
 SETTINGS = [
     S("game", "Game", "enum", GAMES[0][0], "Which game the machine is (Chimera's System): the IWAD's. Not on the settings page.",
       options=[g for g, _, _ in GAMES]),
-    S("version", "Version", "enum", VERSIONS[0].id,
-      "Which release of the game's IWAD (Chimera's Version): the IWAD the project brings as firmware, by its hash. Not on the settings page.",
-      options=[v.id for v in VERSIONS]),
     S("compatibilityLevel", "Compatibility Level", "enum", "2 - Doom & Doom 2 v1.9",
       "The version of Doom or its ports that this movie is meant to emulate. Highest vanilla-compatible level is 'Final Doom'. Newer WADs may require higher levels. Standalone DSDA-Doom defaults to MBF21, which supports features of all of the lower levels, but is the farthest from vanilla.",
       options=COMPLEVELS, when=DOOM_GAMES),
@@ -227,50 +229,51 @@ def declaration():
     for k, v in base.items():
         if k == "input":
             out["machineSetting"] = "game"
-            out["versionSetting"] = "version"
             out["machines"] = []
             for g, label, fmt in GAMES:
-                vs = [v.id for v in VERSIONS if v.game == g]
                 out["machines"].append(collections.OrderedDict([
                     ("id", "Doom"), ("label", label), ("when", [g]),
-                    ("settingOverrides", {"version": {"options": vs}}),
                     ("input", collections.OrderedDict([("name", names[fmt]), ("_comment", v["_comment"]),
                                                        ("buttons", ctl[fmt]["buttons"]), ("axes", ctl[fmt]["axes"])])),
                 ]))
-            out["_machines_note"] = ("One machine a game, all of them BizHawk's Doom system; each narrows the version setting "
-                                     "to its IWAD's releases (Chimera's Version), and has its game's controller.")
+            out["_machines_note"] = ("One machine a game, all of them BizHawk's Doom system, each with its game's controller; "
+                                     "the IWAD the project brings (any release) and the compatibility level say the rest.")
             continue
         out[k] = v
     out["settings"] = SETTINGS
     fw = []
-    for v in VERSIONS:
-        e = collections.OrderedDict([("id", v.iwad), ("display", "%s IWAD" % v.label),
-            ("description", "%s of %s: the game. Yours to supply - the package carries none of the game's data. "
-             "A file of your own (a modified IWAD) may take its place: the project pins its hash." % (v.iwad.upper(), v.label))])
-        if v.size: e["size"] = v.size
-        e["sha1"] = v.sha1
-        e["name"] = v.iwad.upper() if v.game not in ("freedoom1", "freedoom2") else v.iwad
-        e["requiredWhen"] = {"setting": "version", "is": v.id}
+    for g, label, _ in GAMES:
+        iwad = IWAD[g][0]
+        name = iwad.upper() if g not in ("freedoom1", "freedoom2") else iwad
+        e = collections.OrderedDict([("id", iwad), ("display", "%s IWAD" % label),
+            ("description", "%s: the game, any release of it (or a modified IWAD). Yours to supply - the package carries "
+             "none of the game's data; the project pins the file's hash, and the compatibility level says which "
+             "release's rules it plays by." % name)])
+        e["name"] = name
+        e["requiredWhen"] = {"setting": "game", "is": g}
         fw.append(e)
     out["firmware"] = fw
     out["movieImport"] = MOVIE_IMPORT
     return out
 
 
-def versions_header():
+def games_header():
     fmt = {g: f for g, _, f in GAMES}
-    lines = ["/* dsda-versions.h - generated by gen-declaration.py: the IWAD releases the core",
-             " * knows (the version setting's values), each with its game (the machine), the",
-             " * name its IWAD is mounted under (its firmware id: upstream tells the game and",
-             " * its mission by it), its controller, and whether its maps come in episodes",
-             " * (-warp takes an episode then), and the SHA1 its firmware pins. The first is",
-             " * the default. */",
-             "#ifndef DSDA_VERSIONS_H", "#define DSDA_VERSIONS_H", "", '#include "dsda-input.h"', "",
-             "struct dsda_version", "{", "\tconst char *id;", "\tconst char *game;", "\tconst char *iwad;",
-             "\tint format;", "\tint episodic;", "\tconst char *sha1;", "};", "",
-             "static const struct dsda_version k_versions[] = {"]
-    for v in VERSIONS:
-        lines.append('\t{ "%s", "%s", "%s", FORMAT_%s, %d, "%s" },' % (v.id, v.game, v.iwad, fmt[v.game].upper(), v.episodic, v.sha1.upper()))
+    lines = ["/* dsda-games.h - generated by gen-declaration.py: the games the core plays (the game",
+             " * setting's values: the machines), each with the name its IWAD is mounted under (its",
+             " * firmware id: upstream tells the game and its mission by it), its controller, and",
+             " * whether its maps come in episodes (-warp takes an episode then); then the IWAD dumps",
+             " * the core has been tested with, by SHA1 - for telling a demo's game, not a setting.",
+             " * The first game is the default. */",
+             "#ifndef DSDA_GAMES_H", "#define DSDA_GAMES_H", "", '#include "dsda-input.h"', "",
+             "struct dsda_game", "{", "\tconst char *id;", "\tconst char *iwad;", "\tint format;", "\tint episodic;", "};", "",
+             "static const struct dsda_game k_games[] = {"]
+    for g, _, f in GAMES:
+        lines.append('\t{ "%s", "%s", FORMAT_%s, %d },' % (g, IWAD[g][0], f.upper(), IWAD[g][1]))
+    lines += ["};", "", "struct dsda_known_iwad", "{", "\tconst char *game;", "\tconst char *label;", "\tconst char *sha1;", "};", "",
+              "static const struct dsda_known_iwad k_known_iwads[] = {"]
+    for v in KNOWN:
+        lines.append('\t{ "%s", "%s", "%s" },' % (v.game, v.label, v.sha1.upper()))
     lines += ["};", "", "#endif", ""]
     return "\n".join(lines)
 
@@ -287,7 +290,7 @@ def options_header():
     lines += ["\t%s," % c(s["name"]) for s in SETTINGS]
     lines += ["\tnullptr", "};", ""]
     for s in SETTINGS:
-        if s["type"] == "enum" and s["name"] not in ("game", "version"):
+        if s["type"] == "enum" and s["name"] != "game":
             name = re.sub(r"\d", "", s["name"]) if re.match(r"player\dClass", s["name"]) else s["name"]
             if any(l.startswith("static const char *const k_options_%s[]" % name) for l in lines):
                 continue
@@ -297,7 +300,7 @@ def options_header():
 
 
 SLOTS = collections.OrderedDict([
-    ("_comment", "A Doom project picks its game and the release of its IWAD (Chimera's System and Version), whose IWAD is the firmware; its PWADs and DeHackEd patches come here, in the order the engine loads them (-file, then -deh)."),
+    ("_comment", "A Doom project picks its game (Chimera's System), whose IWAD - any release of it - is the firmware; its PWADs and DeHackEd patches come here, in the order the engine loads them (-file, then -deh)."),
     ("slots", [collections.OrderedDict([
         ("id", "pwad"), ("title", "PWADs and patches"), ("min", 0), ("max", -1), ("formats", ["wad", "deh", "bex"]),
         ("help", "The mod's WADs (.wad) and DeHackEd patches (.deh, .bex), in load order - a later WAD's lumps win over an earlier's. None for the game itself.")])]),
@@ -333,6 +336,9 @@ def keybinds():
 
 
 def main():
+    if "--known-iwads" in sys.argv:   # for the gate: "<SHA1> <game> <firmware id>" a line
+        for v in KNOWN: print(v.sha1.upper(), v.game, v.iwad)
+        return
     # the dialog sets only what ImportMovie reads, into a slot the core has
     entry = open(os.path.join(HERE, "wbx-entry.c")).read()
     for name in [f["option"] for f in MOVIE_IMPORT["files"]] + [o["name"] for o in MOVIE_IMPORT["options"]]:
@@ -345,7 +351,7 @@ def main():
         "default_keybinds.json": json.dumps(keybinds(), indent=2) + "\n",
         "waterbox.config": json.dumps(declaration(), indent=2, ensure_ascii=False) + "\n",
         "file_slots.json": json.dumps(SLOTS, indent=2, ensure_ascii=False) + "\n",
-        "dsda-versions.h": versions_header(),
+        "dsda-games.h": games_header(),
         "dsda-options.h": options_header(),
     }
     stale = []

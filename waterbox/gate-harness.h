@@ -29,7 +29,7 @@
 #include <string.h>
 
 #include "dsda-input.h"
-#include "dsda-versions.h"
+#include "dsda-games.h"
 
 #define GATE_BTN_COUNT DSDA_MAX_INPUTS
 
@@ -105,18 +105,18 @@ static uint64_t gate_fnv(uint64_t h, const void *p, size_t n)
 
 static const struct dsda_controller *gate_ctl;
 
-/* the controller of the version the work dir's settings name (the first
- * version's without one) */
+/* the controller of the game the work dir's settings name (the first game's
+ * without one) */
 static void gate_find_controller(void)
 {
-	char buf[4096] = "", version[64] = "";
+	char buf[4096] = "", game[64] = "";
 	FILE *f = fopen("settings", "rb");
 	if (f) { size_t n = fread(buf, 1, sizeof buf - 1, f); buf[n] = 0; fclose(f); }
-	const char *v = strstr(buf, "\"version\"");
-	if (v && (v = strchr(v + 9, '"'))) sscanf(v + 1, "%63[^\"]", version);
-	int format = k_versions[0].format;
-	for (size_t i = 0; i < sizeof k_versions / sizeof k_versions[0]; i++)
-		if (!strcmp(k_versions[i].id, version)) format = k_versions[i].format;
+	const char *v = strstr(buf, "\"game\"");
+	if (v && (v = strchr(v + 6, '"'))) sscanf(v + 1, "%63[^\"]", game);
+	int format = k_games[0].format;
+	for (size_t i = 0; i < sizeof k_games / sizeof k_games[0]; i++)
+		if (!strcmp(k_games[i].id, game)) format = k_games[i].format;
 	gate_ctl = dsda_controller(format);
 }
 

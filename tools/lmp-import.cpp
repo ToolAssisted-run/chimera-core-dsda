@@ -3,14 +3,15 @@
  * export's) with what a command line adds - finding the IWAD and the PWADs in
  * folders, the package's identity, and the .chimeraProject written out.
  *
- * usage: lmp-import <demo.lmp> [-o <out.chimeraProject>] [--version <id> | --iwad <file>]
+ * usage: lmp-import <demo.lmp> [-o <out.chimeraProject>] [--iwad <file> | --game <id>]
  *                   [--wads <dir>]... [--pwad <file>]... [--no-pwads] [--longtics]
  *                   [--respawn] [--fast] [--nomonsters] [--package <dsda.chimeraCore>]
  *                   [--title <text>] [--info]
  *
- *   --version, --iwad  the IWAD's release (a version id, or the file itself, found
- *                      by its hash); without them, the footer's -iwad and the
- *                      format decide when they can
+ *   --iwad             the IWAD: the game (any release of it; the project pins the
+ *                      file's hash); without it, the footer's -iwad, found in --wads
+ *   --game             the game's IWAD under its own name (doom2.wad, freedoom1.wad,
+ *                      ...), found in --wads
  *   --wads             folders where the demo's PWADs and patches (by the footer's
  *                      names) and its IWAD are looked for
  *   --pwad             the PWADs and patches, in order, when the footer does not
@@ -186,7 +187,7 @@ std::string top_string(const std::string &json, const char *key)
 
 void usage()
 {
-	fprintf(stderr, "usage: lmp-import <demo.lmp> [-o <out.chimeraProject>] [--version <id> | --iwad <file>]\n"
+	fprintf(stderr, "usage: lmp-import <demo.lmp> [-o <out.chimeraProject>] [--iwad <file> | --game <id>]\n"
 		"                  [--wads <dir>]... [--pwad <file>]... [--no-pwads] [--longtics]\n"
 		"                  [--respawn] [--fast] [--nomonsters] [--package <dsda.chimeraCore>]\n"
 		"                  [--title <text>] [--info]\n");
@@ -197,7 +198,8 @@ void usage()
 
 int main(int argc, char **argv)
 {
-	const char *demo_path = nullptr, *out = nullptr, *version = nullptr, *iwad = nullptr, *package = nullptr, *title = nullptr;
+	const char *demo_path = nullptr, *out = nullptr, *iwad = nullptr, *package = nullptr, *title = nullptr;
+	std::string game_iwad;
 	std::vector<std::string> pwads;
 	bool have_pwads = false, info = false;
 	struct lmpi_options o;
@@ -208,7 +210,7 @@ int main(int argc, char **argv)
 		const std::string a = argv[i];
 		const bool more = i + 1 < argc;
 		if ((a == "-o" || a == "--out") && more) out = argv[++i];
-		else if (a == "--version" && more) version = argv[++i];
+		else if (a == "--game" && more) game_iwad = std::string(argv[++i]) + ".wad";
 		else if (a == "--iwad" && more) iwad = argv[++i];
 		else if (a == "--wads" && more) files.dirs.push_back(argv[++i]);
 		else if (a == "--pwad" && more) pwads.push_back(argv[++i]), have_pwads = true;
@@ -231,10 +233,10 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	if (iwad) files.paths.push_back(iwad);
+	else if (!game_iwad.empty()) iwad = game_iwad.c_str();   /* found in --wads by its name */
 	for (auto &p : pwads) files.paths.push_back(p);
 	std::vector<const char *> pwad_names;
 	for (auto &p : pwads) pwad_names.push_back(p.c_str());
-	o.version = version;
 	o.iwad = iwad;
 	o.pwads = have_pwads ? pwad_names.data() : nullptr;
 	o.npwads = (int)pwad_names.size();
@@ -268,7 +270,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	fprintf(stderr, "%s: %s, %ld tics, player%s %s, %s%s%s\n", base.c_str(), sum.format, sum.tics, strchr(sum.players, ',') ? "s" : "",
-		sum.players, sum.version, sum.complevel[0] ? ", " : "", sum.complevel);
+		sum.players, sum.iwad, sum.complevel[0] ? ", " : "", sum.complevel);
 	if (sum.footer[0]) fprintf(stderr, "  footer: %s\n", sum.footer);
 	for (char *note = sum.notes; *note;)
 	{

@@ -39,7 +39,7 @@
 
 extern "C" {
 #include "dsda-input.h"
-#include "dsda-versions.h"
+#include "dsda-games.h"
 }
 #include "dsda-options.h"
 
@@ -602,23 +602,16 @@ Footer footer_values(const std::vector<std::string> &args, const std::string &te
 
 /* ------------------------------------------------------------------ the declaration */
 
-const struct dsda_version *version_by_id(const std::string &id)
+const struct dsda_game *game_by_id(const std::string &id)
 {
-	for (auto &v : k_versions)
-		if (id == v.id) return &v;
+	for (auto &g : k_games)
+		if (id == g.id) return &g;
 	return nullptr;
 }
 
-const struct dsda_version *version_by_sha1(const std::string &sha1)
+std::string family_of(const struct dsda_game *g)
 {
-	for (auto &v : k_versions)
-		if (sha1 == v.sha1) return &v;
-	return nullptr;
-}
-
-std::string family_of(const struct dsda_version *v)
-{
-	return v->format == FORMAT_HERETIC ? "heretic" : v->format == FORMAT_HEXEN ? "hexen" : "doom";
+	return g->format == FORMAT_HERETIC ? "heretic" : g->format == FORMAT_HEXEN ? "hexen" : "doom";
 }
 
 std::string option_leading(const char *const *options, const char *display, int leading)
@@ -984,10 +977,10 @@ int hexen_warp(int gamemap, const std::vector<std::pair<const unsigned char *, s
 
 /* ------------------------------------------------------------------ the import */
 
-const char *const k_retail_games[] = { "doom", "freedoom1" };
 const char *const k_final_games[] = { "tnt", "plutonia" };
 
-int complevel_of(const Demo &demo, const std::string &game, const Footer &f)
+/* retail: the IWAD has a fourth episode (E4M1), upstream's gamemode retail */
+int complevel_of(const Demo &demo, const std::string &game, bool retail, const Footer &f)
 {
 	if (!(demo.version >= 104 && demo.version <= 111)) return demo.complevel;  /* 1.2's 0, a Boom-or-later header's own */
 	/* 1.4-1.9, TASDoom, longtics: G_GetOriginalDoomCompatLevel - the footer's
@@ -1000,8 +993,7 @@ int complevel_of(const Demo &demo, const std::string &game, const Footer &f)
 	}
 	if (demo.version == 110) return 6;
 	if (demo.version < 107) return 1;
-	for (auto g : k_retail_games)
-		if (game == g) return 3;
+	if (retail) return 3;
 	for (auto g : k_final_games)
 		if (game == g) return 4;
 	return 2;
@@ -1010,7 +1002,7 @@ int complevel_of(const Demo &demo, const std::string &game, const Footer &f)
 struct Result
 {
 	Settings settings;
-	std::string game, version, firmware_id, firmware_sha1;
+	std::string game, iwad, firmware_id, firmware_sha1;
 	std::vector<std::pair<std::string, std::string>> files;  /* name, sha1 */
 	std::vector<std::string> notes;
 	std::string input;
@@ -1019,107 +1011,82 @@ struct Result
 	std::string port;
 };
 
+/* the game an IWAD is: a dump the core has been tested with (by its hash), else its file name (upstream's
+ * AddIWAD's names), else its lumps; "" none. label: what it is, for the summary */
+std::string game_of_iwad(const unsigned char *b, size_t n, const std::string &name, std::string *label)
+{
+	const std::string sha1 = sha1_hex(b, n);
+	for (auto &k : k_known_iwads)
+		if (sha1 == k.sha1) { *label = k.label; return k.game; }
+	*label = "an IWAD the core has not been tested with";
+	static const char *const names[][2] = {
+		{ "doom2.wad", "doom2" }, { "doom2f.wad", "doom2" }, { "doom.wad", "doom" }, { "doomu.wad", "doom" },
+		{ "doom1.wad", "doom" }, { "tnt.wad", "tnt" }, { "plutonia.wad", "plutonia" }, { "heretic.wad", "heretic" },
+		{ "heretic1.wad", "heretic" }, { "hexen.wad", "hexen" }, { "chex.wad", "chex" },
+		{ "freedoom1.wad", "freedoom1" }, { "freedoom2.wad", "freedoom2" }, { "freedm.wad", "freedoom2" } };
+	const std::string base = lower(basename_of(name));
+	for (auto &e : names)
+		if (base == e[0]) return e[1];
+	std::string lump;
+	auto has = [&](const char *l) { return wad_lump(b, n, l, &lump); };
+	if (has("FREEDOOM")) return has("MAP01") ? "freedoom2" : "freedoom1";
+	if (has("MAPINFO") && has("STARTUP") && has("MAP01")) return "hexen";
+	if (has("ADVISOR") && has("E1M1")) return "heretic";
+	if (has("E1M1")) return "doom";
+	if (has("MAP01")) return "doom2";
+	return "";
+}
+
 Result import(const unsigned char *data, size_t size, const struct lmpi_options *o)
 {
 	Reader rd{ o };
 	Result r;
-	std::string family_hint;
-	const struct dsda_version *given = nullptr;
-	std::string iwad_name;          /* the IWAD's name, as the reader knows it */
-	if (o->version)
+	/* the IWAD - the one given, else the footer's -iwad - says the game; any release of it plays, the
+	 * compatibility level says the rules, and the project pins the file's own hash */
+	const unsigned char *iwad = nullptr;
+	size_t iwad_size = 0;
+	std::string iwad_name, iwad_label, game;
+	if (o->iwad)
 	{
-		given = version_by_id(o->version);
-		if (given) family_hint = family_of(given);
+		iwad = rd.read(o->iwad, &iwad_size);
+		iwad_name = o->iwad;
+		if (iwad) game = game_of_iwad(iwad, iwad_size, iwad_name, &iwad_label);
 	}
-	else if (o->iwad)
-	{
-		size_t n;
-		const unsigned char *b = rd.read(o->iwad, &n);
-		if (b)
-		{
-			const struct dsda_version *v = version_by_sha1(sha1_hex(b, n));
-			if (v) family_hint = family_of(v);
-		}
-	}
-	Demo demo = parse_demo(data, size, family_hint, o->longtics);
+	/* the demo first: its own refusals do not depend on the IWAD */
+	Demo demo = parse_demo(data, size, game.empty() ? std::string() : family_of(game_by_id(game)), o->longtics);
+	if (o->iwad && !iwad) refuse("%s cannot be read", o->iwad);
+	if (o->iwad && game.empty()) refuse("%s is the IWAD of none of the games the core plays: its name and its lumps say none", o->iwad);
 	if (o->longtics && demo.family == "doom")
 		refuse("longtics are for Heretic and Hexen demos; a Doom demo's format says its turning");
 	const Footer f = footer_values(demo.footer_args, demo.footer_text);
-
-	/* the IWAD's release: the version given, the IWAD's hash, or the footer's -iwad */
-	const struct dsda_version *version = nullptr;
-	if (o->iwad)
+	if (!iwad && !f.iwad.empty())
 	{
-		size_t n;
-		const unsigned char *b = rd.read(o->iwad, &n);
-		if (!b) refuse("%s cannot be read", o->iwad);
-		const std::string sha1 = sha1_hex(b, n);
-		version = version_by_sha1(sha1);
-		if (!version) refuse("%s (SHA1 %s) is none of the IWADs the core pins", o->iwad, sha1.c_str());
-		iwad_name = o->iwad;
-	}
-	else if (o->version)
-	{
-		if (!given)
+		iwad = rd.read(f.iwad, &iwad_size);
+		if (iwad)
 		{
-			std::vector<std::string> ids;
-			for (auto &v : k_versions) ids.push_back(v.id);
-			refuse("the core has no version %s (it has %s)", o->version, join(ids, ", ").c_str());
-		}
-		version = given;
-	}
-	else
-	{
-		std::vector<const struct dsda_version *> candidates;
-		for (auto &v : k_versions) candidates.push_back(&v);
-		if (!f.iwad.empty())
-		{
-			const std::string name = lower(basename_of(f.iwad));
-			std::vector<const struct dsda_version *> named;
-			for (auto v : candidates)
-				if (lower(v->iwad) == name) named.push_back(v);
-			candidates = named;
-			size_t n;
-			const unsigned char *b = rd.read(f.iwad, &n);
-			if (b)
-			{
-				const struct dsda_version *v = version_by_sha1(sha1_hex(b, n));
-				if (v) version = v, iwad_name = f.iwad;
-			}
-		}
-		if (!version)
-		{
-			if (demo.family != "doom")
-			{
-				std::vector<const struct dsda_version *> same;
-				for (auto v : candidates)
-					if (family_of(v) == demo.family) same.push_back(v);
-				candidates = same;
-			}
-			if (candidates.size() != 1)
-			{
-				std::vector<std::string> ids;
-				for (auto v : candidates) ids.push_back(v->id);
-				refuse("the demo does not say which IWAD it is for%s: give its IWAD (or its release: %s)",
-					f.iwad.empty() ? "" : (" beyond its name, " + f.iwad + ",").c_str(), ids.empty() ? "none fits" : join(ids, ", ").c_str());
-			}
-			version = candidates[0];
+			iwad_name = f.iwad;
+			game = game_of_iwad(iwad, iwad_size, iwad_name, &iwad_label);
+			if (game.empty()) refuse("its footer's IWAD, %s, is the IWAD of none of the games the core plays", f.iwad.c_str());
 		}
 	}
-	const std::string game = version->game;
-	const std::string family = family_of(version);
+	if (!iwad)
+		refuse("the demo does not say which IWAD it is for%s: give its IWAD",
+			f.iwad.empty() ? "" : (" beyond its footer's name, " + f.iwad + ", which is " + (o->missing_hint ? o->missing_hint : "not at hand")).c_str());
+	const struct dsda_game *gm = game_by_id(game);
+	const std::string family = family_of(gm);
 	if (family != demo.family)
 	{
 		std::string fam = demo.family;
 		fam[0] = (char)toupper((unsigned char)fam[0]);
-		refuse("it is a %s demo, and %s is %s's", fam.c_str(), version->id, game.c_str());
+		refuse("it is a %s demo, and %s is %s's IWAD", fam.c_str(), basename_of(iwad_name).c_str(), game.c_str());
 	}
+	std::string e4;
+	const bool retail = wad_lump(iwad, iwad_size, "E4M1", &e4);
 
 	Settings &s = r.settings;
 	set(s, "game", Value::of(game));
-	set(s, "version", Value::of(version->id));
 	if (family == "doom")
-		set(s, "compatibilityLevel", Value::of(option_leading(k_options_compatibilityLevel, "Compatibility Level", complevel_of(demo, game, f))));
+		set(s, "compatibilityLevel", Value::of(option_leading(k_options_compatibilityLevel, "Compatibility Level", complevel_of(demo, game, retail, f))));
 	if (demo.skill > 4) refuse("its skill %d is past Nightmare (4)", demo.skill);
 	set(s, "skillLevel", Value::of(k_options_skillLevel[demo.skill]));
 	set(s, "initialEpisode", Value::of(demo.episode));
@@ -1202,9 +1169,9 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 	for (auto &kv : s)
 		if (!declared(kv.first)) refuse("the core declares no setting %s", kv.first.c_str());
 
-	/* the firmware: the IWAD, by the version's hash */
-	r.firmware_id = version->iwad;
-	r.firmware_sha1 = version->sha1;
+	/* the firmware: the game's IWAD, the file given (its own hash) */
+	r.firmware_id = gm->iwad;
+	r.firmware_sha1 = sha1_hex(iwad, iwad_size);
 
 	/* the files: the ones given, else the footer's -file and -deh */
 	std::vector<std::string> names;
@@ -1254,13 +1221,8 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 	if (game == "hexen")
 	{
 		/* the core's initial map is what -warp takes, as BizHawk's */
-		size_t n = 0;
-		const unsigned char *b = iwad_name.empty() ? nullptr : rd.read(iwad_name, &n);
-		if (!b) b = rd.read(version->iwad, &n);
-		if (!b || sha1_hex(b, n) != version->sha1)
-			refuse("a Hexen demo's map is reached by its warp number, which the IWAD's MAPINFO says: give the IWAD");
 		std::vector<std::pair<const unsigned char *, size_t>> all;
-		all.emplace_back(b, n);
+		all.emplace_back(iwad, iwad_size);
 		all.insert(all.end(), wad_bytes.begin(), wad_bytes.end());
 		const int warp = hexen_warp(demo.map, all);
 		set(s, "initialMap", Value::of(warp));
@@ -1273,9 +1235,9 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 	for (int i = 0; i < 4; i++) a.present[i] = demo.players[i];
 	a.longtics = demo.longtics;
 	a.extended_commands = (demo.excmd ? 1 : 0) + (demo.casual ? 1 : 0);
-	r.input = input_log(demo, version->format, a, &r.frames);
+	r.input = input_log(demo, gm->format, a, &r.frames);
 	r.game = game;
-	r.version = version->id;
+	r.iwad = game + " (" + iwad_label + ")";
 	auto port = demo.footer.find("PORTNAME");
 	if (port != demo.footer.end())
 	{
@@ -1308,7 +1270,6 @@ std::string parts_json(const Result &r)
 	out += "  \"footer\": " + quote(join(r.demo.footer_args, " ")) + ",\n";
 	out += "  \"port\": " + quote(r.port) + ",\n";
 	out += "  \"game\": " + quote(r.game) + ",\n";
-	out += "  \"version\": " + quote(r.version) + ",\n";
 	out += "  \"settings\": " + json_settings(r.settings, "  ") + ",\n";
 	out += "  \"firmware\": [{\"id\": " + quote(r.firmware_id) + ", \"sha1\": " + quote(r.firmware_sha1) + "}],\n";
 	out += "  \"files\": [";
@@ -1357,7 +1318,7 @@ extern "C" char *lmpi_import(const unsigned char *demo, size_t size, const struc
 		{
 			memset(summary, 0, sizeof *summary);
 			snprintf(summary->format, sizeof summary->format, "%s", r.demo.format.c_str());
-			snprintf(summary->version, sizeof summary->version, "%s", r.version.c_str());
+			snprintf(summary->iwad, sizeof summary->iwad, "%s", r.iwad.c_str());
 			for (auto &kv : r.settings)
 				if (kv.first == "compatibilityLevel") snprintf(summary->complevel, sizeof summary->complevel, "%s", kv.second.s.c_str());
 			snprintf(summary->players, sizeof summary->players, "%s", players_text(r.demo).c_str());

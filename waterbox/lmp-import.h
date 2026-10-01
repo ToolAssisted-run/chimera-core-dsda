@@ -1,13 +1,14 @@
 /* lmp-import.h - the demo importer: a Doom-engine demo (.lmp) as the parts of
  * a Chimera project for this core - what the demo dictates as the settings,
- * its IWAD as the firmware, its PWADs and patches as the pwad slot's files, its
+ * its IWAD (the game, any release) as the firmware, its PWADs and patches as the pwad slot's files, its
  * tics as the input log, frame for tic - or as the whole .chimeraProject.
  *
  * The same code in the core (wbx-entry.c's ImportMovie, which a frontend calls
  * with the demo and the WADs mounted) and in the command-line tool
  * (tools/lmp-import.cpp). It has no file system of its own: what it needs to
- * read - the IWAD (its hash says the release; Hexen's MAPINFO says its warp
- * numbers), the PWADs and patches (their hashes, the manifest's; their
+ * read - the IWAD (the game: by its hash when it is a dump the core knows,
+ * else by its name and lumps; a fourth episode; Hexen's MAPINFO for the warp
+ * numbers; the project pins its own hash), the PWADs and patches (their hashes, the manifest's; their
  * MAPINFO) - it asks the caller for by name. */
 #ifndef LMP_IMPORT_H
 #define LMP_IMPORT_H
@@ -27,8 +28,7 @@ typedef const unsigned char *(*lmpi_read_fn)(void *ctx, const char *name, size_t
 
 struct lmpi_options
 {
-	const char *version;          /* the IWAD's release (a version id); NULL: the IWAD's hash, the footer's -iwad */
-	const char *iwad;             /* the IWAD, a name the reader knows; NULL: none given */
+	const char *iwad;             /* the IWAD, a name the reader knows; NULL: the footer's -iwad */
 	const char *const *pwads;     /* the PWADs and patches by name, in order; NULL: the footer's */
 	int npwads;
 	int no_pwads;                 /* none, whatever the footer names (an IWAD's own demos) */
@@ -51,7 +51,7 @@ struct lmpi_project
 struct lmpi_summary
 {
 	char format[96];
-	char version[48];
+	char iwad[96];                /* the game, and the IWAD dump it is (or none the core knows) */
 	char complevel[48];
 	char players[16];
 	char footer[512];
@@ -61,7 +61,7 @@ struct lmpi_summary
 };
 
 /* the demo as JSON (malloc'd: the caller frees it) - the parts ({"game",
- * "version", "settings", "firmware", "files", "input", "frames", "format",
+ * "settings", "firmware", "files", "input", "frames", "format",
  * "tics", "players", "footer", "port", "notes"}), or with a project the whole
  * .chimeraProject - or NULL and the reason in err. summary may be NULL. */
 char *lmpi_import(const unsigned char *demo, size_t size, const struct lmpi_options *o,

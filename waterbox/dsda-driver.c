@@ -59,13 +59,13 @@
 
 /* ------------------------------------------------------------ the games */
 
-#include "dsda-versions.h"
+#include "dsda-games.h"
 
 /* ------------------------------------------------------------ the settings */
 
 struct dsda_settings
 {
-	char version[32];
+	char game[32];
 	/* BizHawk's sync settings */
 	int scale_factor, internal_aspect;          /* aspect: 0 native, 1 16:9, 2 16:10, 3 4:3 */
 	int complevel, skill, multiplayer_mode;
@@ -142,7 +142,7 @@ static void read_settings(struct dsda_settings *s)
 {
 	char str[64];
 #define STR(name, def) (snprintf(str, sizeof str, "%s", def), wbx_setting_str(name, str, (int)sizeof str), str)
-	snprintf(s->version, sizeof s->version, "%.31s", STR("version", k_versions[0].id));
+	snprintf(s->game, sizeof s->game, "%.31s", STR("game", k_games[0].id));
 	s->scale_factor = (int)wbx_setting_long("scaleFactor", 1);
 	s->internal_aspect = enum_index(STR("internalAspect", "Native"), k_aspects, 4, 0);
 	s->complevel = leading_int(STR("compatibilityLevel", "2 - Doom & Doom 2 v1.9"), 2);
@@ -210,7 +210,7 @@ static void read_settings(struct dsda_settings *s)
 static struct
 {
 	struct dsda_settings s;
-	const struct dsda_version *version;
+	const struct dsda_game *game;
 	const struct dsda_controller *ctl;
 	int init_done;
 	int halted;
@@ -436,25 +436,15 @@ static int has_ext(const char *name, const char *ext)
 int dsdadrv_init(char *err, int errsize)
 {
 	read_settings(&g.s);
-	g.version = NULL;
-	for (size_t i = 0; i < sizeof k_versions / sizeof k_versions[0]; i++)
-		if (!strcmp(k_versions[i].id, g.s.version)) g.version = &k_versions[i];
-	if (!g.version)
+	g.game = NULL;
+	for (size_t i = 0; i < sizeof k_games / sizeof k_games[0]; i++)
+		if (!strcmp(k_games[i].id, g.s.game)) g.game = &k_games[i];
+	if (!g.game)
 	{
-		snprintf(err, (size_t)errsize, "the setting version is \"%s\", which is none of the IWADs the core knows", g.s.version);
+		snprintf(err, (size_t)errsize, "the setting game is \"%s\", which is none of the games the core knows", g.s.game);
 		return 0;
 	}
-	{
-		/* the machine (Chimera's System) is the version's game */
-		char game[32] = "";
-		wbx_setting_str("game", game, (int)sizeof game);
-		if (game[0] && strcmp(game, g.version->game))
-		{
-			snprintf(err, (size_t)errsize, "the version %s is %s's, not the game %s's", g.version->id, g.version->game, game);
-			return 0;
-		}
-	}
-	g.ctl = dsda_controller(g.version->format);
+	g.ctl = dsda_controller(g.game->format);
 	for (int i = 0; i < g.ctl->naxes; i++) g.axis[i] = g.ctl->axes[i].neutral;
 
 	/* the refusals BizHawk's frontend makes */
@@ -525,12 +515,13 @@ int dsdadrv_init(char *err, int errsize)
 		g.aspect_y = a == 0 ? 3 : g.video_h;
 	}
 
-	/* the IWAD, as the version's firmware; the PWADs and patches, as the
-	 * project's "pwad" slot has them, in order */
-	FILE *f = fopen(g.version->iwad, "rb");
+	/* the IWAD, as the game's firmware (any release: the compatibility level
+	 * says the rules); the PWADs and patches, as the project's "pwad" slot has
+	 * them, in order */
+	FILE *f = fopen(g.game->iwad, "rb");
 	if (!f)
 	{
-		snprintf(err, (size_t)errsize, "%s needs its IWAD, %s (firmware), which is not there", g.version->id, g.version->iwad);
+		snprintf(err, (size_t)errsize, "%s needs its IWAD, %s (firmware), which is not there", g.game->id, g.game->iwad);
 		return 0;
 	}
 	fclose(f);
@@ -542,7 +533,7 @@ int dsdadrv_init(char *err, int errsize)
 	arg("-config"); arg("/chimera-none/dsda-doom.cfg");
 	arg("-data"); arg("/chimera-none");
 	arg("-noautoload");
-	arg("-iwad"); arg(g.version->iwad);
+	arg("-iwad"); arg(g.game->iwad);
 	{
 		char name[256];
 		int nfile = 0;
@@ -562,7 +553,7 @@ int dsdadrv_init(char *err, int errsize)
 	}
 	/* BizHawk's CreateArguments */
 	arg("-warp");
-	if (g.s.initial_episode != 0 && g.version->episodic) argi(g.s.initial_episode);
+	if (g.s.initial_episode != 0 && g.game->episodic) argi(g.s.initial_episode);
 	argi(g.s.initial_map);
 	arg("-skill"); argi(g.s.skill);
 	arg("-complevel"); argi(g.s.complevel);
@@ -607,7 +598,7 @@ int dsdadrv_init(char *err, int errsize)
 	{
 		playeringame[i] = g.s.player_present[i];
 		/* a class is Hexen's; the other games' players have none */
-		PlayerClass[i] = g.version->format == FORMAT_HEXEN ? (pclass_t)g.s.player_class[i] : PCLASS_NULL;
+		PlayerClass[i] = g.game->format == FORMAT_HEXEN ? (pclass_t)g.s.player_class[i] : PCLASS_NULL;
 	}
 	displayplayer = consoleplayer = g.s.display_player - 1;
 
@@ -772,7 +763,7 @@ static void player_input(int i)
 	if (PRESSED(C_USE, port)) buttons |= BT_USE;
 	if (weapon > 0) buttons |= BT_CHANGE;
 
-	if (g.version->format != FORMAT_DOOM)
+	if (g.game->format != FORMAT_DOOM)
 	{
 		int look = control_value(C_LOOK, port), fly = control_value(C_FLY, port);
 		if (look < 0) look += 16;
@@ -788,7 +779,7 @@ static void player_input(int i)
 		if (PRESSED(C_FLY_UP, port)) buttons |= BUTTON_FLY_UP;
 		if (PRESSED(C_FLY_DOWN, port)) buttons |= BUTTON_FLY_DOWN;
 		if (PRESSED(C_FLY_CENTER, port)) buttons |= BUTTON_FLY_CENTER;
-		if (g.version->format == FORMAT_HEXEN)
+		if (g.game->format == FORMAT_HEXEN)
 		{
 			if (PRESSED(C_JUMP, port)) arti |= ARTI_JUMP;
 			if (PRESSED(C_END_PLAYER, port)) arti |= ARTI_END_PLAYER;
@@ -859,7 +850,7 @@ static void player_input(int i)
 		/* the command's pause replaces its buttons, as G_BuildTiccmd's sendpause;
 		 * in the Raven games a special command with any low bits */
 		{
-			const int special = g.version->format != FORMAT_DOOM ? control_value(C_SPECIAL, port) & 0x7f : 0;
+			const int special = g.game->format != FORMAT_DOOM ? control_value(C_SPECIAL, port) & 0x7f : 0;
 			if (special)
 				dest->buttons = (byte)(BT_SPECIAL | special);
 			else if (PRESSED(C_PAUSE, port))

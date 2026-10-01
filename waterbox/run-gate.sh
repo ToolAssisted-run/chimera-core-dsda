@@ -55,9 +55,9 @@
 #                pwad slot's WAD (a DEHACKED lump) and patch (.deh) each change
 #                the player's initial health
 #   declaration  gen-declaration.py writes what the repo holds (waterbox.config,
-#                file_slots.json, default_keybinds.json, dsda-versions.h)
-#   refusals     no IWAD, a version that is another game's, a version the core
-#                does not have, no player, scaleFactor 13, an option block that
+#                file_slots.json, default_keybinds.json, dsda-games.h,
+#                dsda-options.h)
+#   refusals     no IWAD, a game the core does not have, no player, scaleFactor 13, an option block that
 #                is not hex, one where the complevel has none, one of the wrong
 #                size: each says why
 #   clock        the guest has no clock of its own: time() and clock_gettime()
@@ -145,15 +145,8 @@ value() { digests "$1" | sed -n "s/^$2=//p"; }
 # a trace line: step, rate, input read, then the values; the last line's nth
 last() { tail -1 "$1" | awk -v col="$2" '{print $(3 + col)}'; }
 sha1_of() { sha1sum "$1" | awk '{print toupper($1)}'; }
-# the firmware the declaration pins: "<sha1> <version> <game> <firmware id>" a line
-python3 - "$here/waterbox.config" > "$work/pinned" <<'PY'
-import json, sys
-cfg = json.load(open(sys.argv[1]))
-game = {v: m["when"][0] for m in cfg["machines"] for v in m["settingOverrides"]["version"]["options"]}
-for f in cfg["firmware"]:
-    v = f["requiredWhen"]["is"]
-    print(f["sha1"].upper(), v, game[v], f["id"])
-PY
+# the IWAD dumps the core has been tested with: "<sha1> <game> <firmware id>" a line
+python3 "$here/gen-declaration.py" --known-iwads > "$work/pinned"
 # a WAD's lump to a file: wad_lump <wad> <LUMP> <out>
 wad_lump() {
 	python3 - "$@" <<'PY'
@@ -192,8 +185,8 @@ for n in z.namelist():
 fi
 for p in 1 2; do
 	s="$(sha1_of "$freedoom/freedoom$p.wad")"
-	if grep -q "^$s freedoom$p-0.13.0 " "$work/pinned"; then
-		pass "freedoom: freedoom$p.wad is 0.13.0's, as the declaration pins it ($s)"
+	if grep -q "^$s freedoom$p " "$work/pinned"; then
+		pass "freedoom: freedoom$p.wad is 0.13.0's, a dump the core knows ($s)"
 		ln -sf "$(cd "$freedoom" && pwd)/freedoom$p.wad" "$work/files/freedoom$p.wad"
 	else
 		fail "freedoom: $freedoom/freedoom$p.wad ($s) is not 0.13.0's"; exit 1
@@ -207,9 +200,9 @@ if [ -n "$iwads" ]; then
 		line="$(grep "^$(sha1_of "$f") " "$work/pinned" | head -1 || true)"
 		[ -n "$line" ] || continue
 		set -- $line
-		case $3 in freedoom1|freedoom2) continue ;; esac
-		ln -sf "$(cd "$(dirname "$f")" && pwd)/$(basename "$f")" "$work/files/$4"
-		echo "$2 $3 $4" >> "$work/iwads"
+		case $2 in freedoom1|freedoom2) continue ;; esac
+		ln -sf "$(cd "$(dirname "$f")" && pwd)/$(basename "$f")" "$work/files/$3"
+		echo "$2 $3" >> "$work/iwads"
 	done
 fi
 
@@ -242,11 +235,11 @@ import_check() {
 	fi
 }
 
-# record <dir> <version> <game> <frames> <settings JSON> [extra gate-args] [PWAD]:
+# record <dir> <game> <frames> <settings JSON> [extra gate-args] [PWAD]:
 # the engine records dir/rec.lmp from a movie that works every input
 record() {
-	d="$1"; version="$2"; game="$3"; frames="$4"; settings="$5"; extra="${6:-}"; pwad="${7:-}"
-	id="$(awk -v v="$version" '$2 == v { print $4 }' "$work/pinned" | head -1)"
+	d="$1"; game="$2"; frames="$3"; settings="$4"; extra="${5:-}"; pwad="${6:-}"
+	id="$game.wad"
 	mkwork "$d/r" "$work/files/$id" "$id" "$settings"
 	if [ -n "$pwad" ]; then
 		cp "$pwad" "$d/r/"
@@ -265,13 +258,13 @@ for p in 1 2; do
 		wad_lump "$freedoom/freedoom$p.wad" DEMO$k "$work/demo$p-$k/freedoom$p-DEMO$k.lmp"
 		# an IWAD's own demos play from it alone (DEMO3's footer names the fix
 		# Phase 2's MAP22 was recorded with, since in the IWAD)
-		import_check "$work/demo$p-$k" "$work/demo$p-$k/freedoom$p-DEMO$k.lmp" "demos (freedoom$p)" --version freedoom$p-0.13.0 --no-pwads
+		import_check "$work/demo$p-$k" "$work/demo$p-$k/freedoom$p-DEMO$k.lmp" "demos (freedoom$p)" --game freedoom$p --no-pwads
 	done
 done
 
 echo "== levels (the gate's own: three rooms, their exits, the intermissions)"
 python3 "$tests/make-rooms.py" "$work/files/rooms.wad" "$work/rooms.lmp"
-import_check "$work/levels" "$work/rooms.lmp" levels --version freedoom2-0.13.0 --pwad "$work/files/rooms.wad"
+import_check "$work/levels" "$work/rooms.lmp" levels --game freedoom2 --pwad "$work/files/rooms.wad"
 if [ "$(awk 'NR > 1 { print $5 }' "$work/levels/tm" | uniq | tr '\n' ' ')" = "1 2 3 4 " ]; then
 	pass "levels: the demo exits MAP01, MAP02 and MAP03 and each intermission, to Freedoom's MAP04"
 else
@@ -303,31 +296,30 @@ fi
 echo "== formats (recorded by the engine, crafted, imported)"
 fmt="$work/formats"
 st='"turningResolution": "8 bits (shorttics)"'
-fdv=freedoom2-0.13.0
-fcase() { # fcase <name> <settings JSON> [extra gate-args] [PWAD] [version game]
-	n="$1"; set_="$2"; ex="${3:-}"; pw="${4:-}"; v="${5:-$fdv}"; g="${6:-freedoom2}"
-	if record "$fmt/$n" "$v" "$g" 1000 "$set_" "$ex" "$pw"; then
+fcase() { # fcase <name> <settings JSON> [extra gate-args] [PWAD] [game]
+	n="$1"; set_="$2"; ex="${3:-}"; pw="${4:-}"; g="${5:-freedoom2}"
+	if record "$fmt/$n" "$g" 1000 "$set_" "$ex" "$pw"; then
 		cp "$fmt/$n/rec.lmp" "$fmt/$n/$n.lmp"
-		import_check "$fmt/$n/i" "$fmt/$n/$n.lmp" formats --version "$v"
+		import_check "$fmt/$n/i" "$fmt/$n/$n.lmp" formats --game "$g"
 	fi
 }
 for cl in 1 2 4 6 8 9 11 13 14 15 16; do
-	fcase cl$cl "{\"version\": \"$fdv\", \"compatibilityLevel\": \"$cl\", $st}"
+	fcase cl$cl "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"$cl\", $st}"
 done
-fcase cl3 "{\"version\": \"freedoom1-0.13.0\", \"compatibilityLevel\": \"3\", $st}" "" "" freedoom1-0.13.0 freedoom1
-fcase cl2-longtics "{\"version\": \"$fdv\", \"compatibilityLevel\": \"2\"}"
-fcase cl17 "{\"version\": \"$fdv\", \"compatibilityLevel\": \"17\"}"
-fcase cl21 "{\"version\": \"$fdv\", \"compatibilityLevel\": \"21\"}"
-fcase cl21-shorttics "{\"version\": \"$fdv\", \"compatibilityLevel\": \"21\", $st}"
-fcase cl21-dsda "{\"version\": \"$fdv\", \"compatibilityLevel\": \"21\", \"extendedCommands\": \"On, with casual features\"}" -dsdademo
-fcase cl9-dsda "{\"version\": \"$fdv\", \"compatibilityLevel\": \"9\", \"extendedCommands\": \"On, with casual features\", $st}" -dsdademo
-fcase cl2-coop3 "{\"version\": \"$fdv\", \"compatibilityLevel\": \"2\", \"player2Present\": true, \"player3Present\": true, $st}"
-fcase cl9-dm4 "{\"version\": \"$fdv\", \"compatibilityLevel\": \"9\", \"multiplayerMode\": \"Deathmatch\", \"player2Present\": true, \"player3Present\": true, \"player4Present\": true, \"displayPlayer\": 2, $st}"
-fcase cl21-altdm "{\"version\": \"$fdv\", \"compatibilityLevel\": \"21\", \"multiplayerMode\": \"Alternate Deathmatch (v2.0)\", \"player1Present\": false, \"player2Present\": true, \"player4Present\": true}"
-fcase cl11-flags "{\"version\": \"$fdv\", \"compatibilityLevel\": \"11\", \"fastMonsters\": true, \"monstersRespawn\": true, \"skillLevel\": \"2\", \"initialMap\": 5, \"rngSeed\": -123456789, $st}"
-fcase cl3-nomonsters "{\"version\": \"freedoom1-0.13.0\", \"compatibilityLevel\": \"3\", \"noMonsters\": true, \"initialEpisode\": 2, \"initialMap\": 3, \"skillLevel\": \"5\", $st}" "" "" freedoom1-0.13.0 freedoom1
-fcase rooms-cl9 "{\"version\": \"$fdv\", \"compatibilityLevel\": \"9\", $st}" "" "$work/files/rooms.wad"
-fcase rooms-cl21-solonet "{\"version\": \"$fdv\", \"compatibilityLevel\": \"21\", \"soloNet\": true, \"coopSpawns\": true}" "" "$work/files/rooms.wad"
+fcase cl3 "{\"game\": \"freedoom1\", \"compatibilityLevel\": \"3\", $st}" "" "" freedoom1
+fcase cl2-longtics "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"2\"}"
+fcase cl17 "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"17\"}"
+fcase cl21 "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"21\"}"
+fcase cl21-shorttics "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"21\", $st}"
+fcase cl21-dsda "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"21\", \"extendedCommands\": \"On, with casual features\"}" -dsdademo
+fcase cl9-dsda "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"9\", \"extendedCommands\": \"On, with casual features\", $st}" -dsdademo
+fcase cl2-coop3 "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"2\", \"player2Present\": true, \"player3Present\": true, $st}"
+fcase cl9-dm4 "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"9\", \"multiplayerMode\": \"Deathmatch\", \"player2Present\": true, \"player3Present\": true, \"player4Present\": true, \"displayPlayer\": 2, $st}"
+fcase cl21-altdm "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"21\", \"multiplayerMode\": \"Alternate Deathmatch (v2.0)\", \"player1Present\": false, \"player2Present\": true, \"player4Present\": true}"
+fcase cl11-flags "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"11\", \"fastMonsters\": true, \"monstersRespawn\": true, \"skillLevel\": \"2\", \"initialMap\": 5, \"rngSeed\": -123456789, $st}"
+fcase cl3-nomonsters "{\"game\": \"freedoom1\", \"compatibilityLevel\": \"3\", \"noMonsters\": true, \"initialEpisode\": 2, \"initialMap\": 3, \"skillLevel\": \"5\", $st}" "" "" freedoom1
+fcase rooms-cl9 "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"9\", $st}" "" "$work/files/rooms.wad"
+fcase rooms-cl21-solonet "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"21\", \"soloNet\": true, \"coopSpawns\": true}" "" "$work/files/rooms.wad"
 if grep -q '"soloNet": true' "$fmt/rooms-cl21-solonet/i/p.chimeraProject" && grep -q '"coopSpawns": true' "$fmt/rooms-cl21-solonet/i/p.chimeraProject"; then
 	pass "formats: the footer's -solo-net and -coop_spawns are the imported project's soloNet and coopSpawns"
 else
@@ -338,7 +330,7 @@ for kc in doom12:cl2 doom14:cl1 doom15:cl1 lxdoom:cl9 boom200:cl9 options:cl9 op
 	[ -f "$fmt/$src/rec.lmp" ] || continue
 	mkdir -p "$fmt/craft-$k-$src"
 	python3 "$tests/craft-demo.py" "$k" "$fmt/$src/rec.lmp" "$fmt/craft-$k-$src/$k-$src.lmp"
-	import_check "$fmt/craft-$k-$src/i" "$fmt/craft-$k-$src/$k-$src.lmp" formats --version $fdv
+	import_check "$fmt/craft-$k-$src/i" "$fmt/craft-$k-$src/$k-$src.lmp" formats --game freedoom2
 done
 # teeth: the MBF demo whose options were changed, imported without them, is not the demo
 t="$fmt/craft-options-cl11/i"
@@ -364,10 +356,10 @@ refuse_import() { # refuse_import <craft> <source> <expected> <what> [importer a
 		fail "imports: $what - $(echo "$out" | tail -1)"
 	fi
 }
-refuse_import players5 cl9 "the core has four" "a fifth player" --version $fdv
-refuse_import keyframe cl21-dsda "starts from a key frame" "a start from a key frame" --version $fdv
-refuse_import excmdsave cl21-dsda "saves or loads a game" "a game saved mid-demo" --version $fdv
-refuse_import badversion cl2 "no demo format dsda-doom knows" "a version no format has" --version $fdv
+refuse_import players5 cl9 "the core has four" "a fifth player" --game freedoom2
+refuse_import keyframe cl21-dsda "starts from a key frame" "a start from a key frame" --game freedoom2
+refuse_import excmdsave cl21-dsda "saves or loads a game" "a game saved mid-demo" --game freedoom2
+refuse_import badversion cl2 "no demo format dsda-doom knows" "a version no format has" --game freedoom2
 refuse_import doom12 cl2 "does not say which IWAD" "a versionless demo without its game"
 
 echo "== export (the core's ImportMovie)"
@@ -388,12 +380,12 @@ export_check() {
 		fail "export: $n - native, sandbox and the command line differ"
 	fi
 }
-export_check freedoom2-DEMO1 "$work/demo2-1/freedoom2-DEMO1.lmp" '{"importVersion": "freedoom2-0.13.0", "importNoPwads": true}' "--version freedoom2-0.13.0 --no-pwads"
+export_check freedoom2-DEMO1 "$work/demo2-1/freedoom2-DEMO1.lmp" '{"importIwad": "freedoom2.wad", "importNoPwads": true}' "--iwad $fd2 --no-pwads" "$fd2=freedoom2.wad"
 [ -f "$fmt/cl21-dsda/rec.lmp" ] && export_check cl21-dsda "$fmt/cl21-dsda/rec.lmp" '{"importIwad": "freedoom2.wad"}' "--iwad $fd2" "$fd2=freedoom2.wad"
 [ -f "$ref/players5.lmp" ] && {
 	mkdir -p "$work/export/refused"
 	cp "$ref/players5.lmp" "$work/export/refused/movie"
-	printf '{"importVersion": "freedoom2-0.13.0"}' > "$work/export/refused/settings"
+	printf '{}' > "$work/export/refused/settings"
 	if out="$("$native" "$work/export/refused" --import 2>/dev/null)"; then
 		fail "export: a refused demo - ImportMovie succeeded"
 	elif echo "$out" | grep -q '^{"error": "players 5 are in the game; the core has four"}'; then
@@ -426,8 +418,8 @@ else
 fi
 
 echo "== settings"
-mkwork "$work/set" "$fd2" freedoom2.wad '{"version": "freedoom2-0.13.0", "skillLevel": "1", "compatibilityLevel": "9", "initialMap": 7, "noMonsters": true}'
-mkwork "$work/set0" "$fd2" freedoom2.wad '{"version": "freedoom2-0.13.0"}'
+mkwork "$work/set" "$fd2" freedoom2.wad '{"game": "freedoom2", "skillLevel": "1", "compatibilityLevel": "9", "initialMap": 7, "noMonsters": true}'
+mkwork "$work/set0" "$fd2" freedoom2.wad '{"game": "freedoom2"}'
 for build in native wbx; do
 	if [ $build = native ]; then run="$native"; else run="$wbx $core"; fi
 	sp="Game.Skill,Game.Compatibility Level,Game.Map,Level.Total Kills"
@@ -442,7 +434,7 @@ for build in native wbx; do
 		fail "settings ($build): defaults $a (want 3 2 1), set $b (want 0 9 7 0)"
 	fi
 done
-mkwork "$work/scale" "$fd2" freedoom2.wad '{"version": "freedoom2-0.13.0", "scaleFactor": 2}'
+mkwork "$work/scale" "$fd2" freedoom2.wad '{"game": "freedoom2", "scaleFactor": 2}'
 "$native" "$work/scale" --frames 2 --screenshot "1:$work/scale.tga" > /dev/null 2>&1 || true
 dims="$(python3 -c "import struct, sys; d = open(sys.argv[1], 'rb').read(18); print('%dx%d' % struct.unpack('<HH', d[12:16]))" "$work/scale.tga" 2>/dev/null || echo none)"
 if [ "$dims" = 640x400 ]; then pass "settings: scaleFactor 2 draws 640x400"; else fail "settings: scaleFactor 2 draws $dims"; fi
@@ -459,7 +451,7 @@ PY
 for c in wad:health42.wad:42 deh:health37.deh:37; do
 	kind=${c%%:*}; rest=${c#*:}; file=${rest%%:*}; want=${rest#*:}
 	d="$work/slot-$kind"
-	mkwork "$d" "$fd2" freedoom2.wad '{"version": "freedoom2-0.13.0"}'
+	mkwork "$d" "$fd2" freedoom2.wad '{"game": "freedoom2"}'
 	cp "$work/$file" "$d/"
 	printf '{"pwad": ["%s"]}' "$file" > "$d/slots"
 	"$native" "$d" --frames 2 --trace "$d/tn" --trace-props P1.Health > /dev/null 2>&1
@@ -486,21 +478,19 @@ refuse() { # refuse <dir> <expected text> <what>
 }
 mkdir -p "$work/no-iwad"
 cp "$wad" "$work/no-iwad/"
-printf '{"version": "freedoom2-0.13.0"}' > "$work/no-iwad/settings"
+printf '{"game": "freedoom2"}' > "$work/no-iwad/settings"
 refuse "$work/no-iwad" "needs its IWAD, freedoom2.wad (firmware), which is not there" "no IWAD"
-mkwork "$work/other-game" "$fd2" freedoom2.wad '{"game": "doom2", "version": "freedoom2-0.13.0"}'
-refuse "$work/other-game" "is freedoom2's, not the game doom2's" "a version of another game"
-mkwork "$work/no-version" "$fd2" freedoom2.wad '{"version": "doom3"}'
-refuse "$work/no-version" "none of the IWADs the core knows" "a version the core does not have"
-mkwork "$work/no-player" "$fd2" freedoom2.wad '{"version": "freedoom2-0.13.0", "player1Present": false}'
+mkwork "$work/no-game" "$fd2" freedoom2.wad '{"game": "doom3"}'
+refuse "$work/no-game" "none of the games the core knows" "a game the core does not have"
+mkwork "$work/no-player" "$fd2" freedoom2.wad '{"game": "freedoom2", "player1Present": false}'
 refuse "$work/no-player" "no player is present" "no player"
-mkwork "$work/scale13" "$fd2" freedoom2.wad '{"version": "freedoom2-0.13.0", "scaleFactor": 13}'
+mkwork "$work/scale13" "$fd2" freedoom2.wad '{"game": "freedoom2", "scaleFactor": 13}'
 refuse "$work/scale13" "it goes from 1 to 12" "scaleFactor 13"
-mkwork "$work/opt-hex" "$fd2" freedoom2.wad '{"version": "freedoom2-0.13.0", "compatibilityLevel": "9", "demoOptions": "0g"}'
+mkwork "$work/opt-hex" "$fd2" freedoom2.wad '{"game": "freedoom2", "compatibilityLevel": "9", "demoOptions": "0g"}'
 refuse "$work/opt-hex" "demoOptions is not hex" "an option block that is not hex"
-mkwork "$work/opt-cl2" "$fd2" freedoom2.wad "{\"version\": \"freedoom2-0.13.0\", \"compatibilityLevel\": \"2\", \"demoOptions\": \"$(printf '%0128d' 0)\"}"
+mkwork "$work/opt-cl2" "$fd2" freedoom2.wad "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"2\", \"demoOptions\": \"$(printf '%0128d' 0)\"}"
 refuse "$work/opt-cl2" "complevel 2 has none" "an option block at complevel 2"
-mkwork "$work/opt-size" "$fd2" freedoom2.wad '{"version": "freedoom2-0.13.0", "compatibilityLevel": "11", "demoOptions": "0102"}'
+mkwork "$work/opt-size" "$fd2" freedoom2.wad '{"game": "freedoom2", "compatibilityLevel": "11", "demoOptions": "0102"}'
 refuse "$work/opt-size" "is 2 bytes; complevel 11's option block is 64" "an option block of the wrong size"
 
 echo "== clock"
@@ -535,7 +525,7 @@ if [ -n "$chimera_run" ]; then
 		tail -5 "$work/package.log"; fail "engine: the package did not build"; }
 	ed="$work/engine"
 	mkdir -p "$ed"
-	"$importer" "$work/demo2-1/freedoom2-DEMO1.lmp" --version freedoom2-0.13.0 --no-pwads --package "$work/package/dsda.chimeraCore" -o "$ed/p.chimeraProject" 2> "$ed/import.err"
+	"$importer" "$work/demo2-1/freedoom2-DEMO1.lmp" --game freedoom2 --wads "$work/files" --no-pwads --package "$work/package/dsda.chimeraCore" -o "$ed/p.chimeraProject" 2> "$ed/import.err"
 	n=$(python3 "$tests/project-work.py" "$ed/p.chimeraProject" "$ed/m" "$wad" "$work/files")
 	"$wbx" "$core" "$ed/m" --frames "$n" --movie "$ed/m/movie.txt" --dump-domain "Game State" "$ed/harness.gs" > /dev/null 2>&1
 	( cd "$ed" && "$chimera_run" --project "$ed/p.chimeraProject" "$work/package/dsda.chimeraCore" --files "$work/files" --firmware "freedoom2.wad=$fd2" --dump "Game State=$ed/engine.gs" ) > "$ed/engine.out" 2>&1 || true
@@ -547,17 +537,18 @@ if [ -n "$chimera_run" ]; then
 	fi
 fi
 
-# a Raven recording's special commands with their low bits, crafted: <game> <case> <version>
+# a Raven recording's special commands with their low bits, crafted: <game> <case>
 craft_raven() {
 	[ -f "$fmt/$2/rec.lmp" ] || return 0
 	mkdir -p "$fmt/craft-special-$1"
 	python3 "$tests/craft-demo.py" "ravenspecial-$1" "$fmt/$2/rec.lmp" "$fmt/craft-special-$1/special-$1.lmp"
-	import_check "$fmt/craft-special-$1/i" "$fmt/craft-special-$1/special-$1.lmp" formats --version "$3"
+	import_check "$fmt/craft-special-$1/i" "$fmt/craft-special-$1/special-$1.lmp" formats --game "$1"
 }
 
 if [ -n "$iwads" ] && [ -f "$work/iwads" ]; then
 	echo "== iwads ($iwads)"
-	while read -r version game id; do
+	while read -r game id; do
+		version="$game"
 		f="$work/files/$id"
 		lumps="$(python3 - "$f" <<'PY'
 import struct, sys
@@ -575,26 +566,26 @@ PY
 			d="$work/iwad-$version-$lump"
 			mkdir -p "$d"
 			wad_lump "$f" "$lump" "$d/$version-$lump.lmp"
-			import_check "$d" "$d/$version-$lump.lmp" "iwads ($version)" --version "$version" --no-pwads
+			import_check "$d" "$d/$version-$lump.lmp" "iwads ($version)" --game "$game" --no-pwads
 			[ -n "$first" ] || first="$d"
 		done
 		# the Raven games' demos, recorded: the header's flags, longtics, the
 		# classes, co-op, dsda's format
 		case $game in
 			heretic)
-				fcase heretic "{\"version\": \"$version\", $st}" "" "" "$version" heretic
-				fcase heretic-flags "{\"version\": \"$version\", \"monstersRespawn\": true, \"skillLevel\": \"2\", \"initialEpisode\": 2, \"initialMap\": 4}" "" "" "$version" heretic
-				fcase heretic-coop "{\"version\": \"$version\", \"noMonsters\": true, \"player2Present\": true, \"player3Present\": true, $st}" "" "" "$version" heretic
-				fcase heretic-dsda "{\"version\": \"$version\", \"extendedCommands\": \"On, with casual features\"}" -dsdademo "" "$version" heretic
-				craft_raven heretic heretic "$version" ;;
+				fcase heretic "{\"game\": \"$game\", $st}" "" "" heretic
+				fcase heretic-flags "{\"game\": \"$game\", \"monstersRespawn\": true, \"skillLevel\": \"2\", \"initialEpisode\": 2, \"initialMap\": 4}" "" "" heretic
+				fcase heretic-coop "{\"game\": \"$game\", \"noMonsters\": true, \"player2Present\": true, \"player3Present\": true, $st}" "" "" heretic
+				fcase heretic-dsda "{\"game\": \"$game\", \"extendedCommands\": \"On, with casual features\"}" -dsdademo "" heretic
+				craft_raven heretic heretic ;;
 			hexen)
-				fcase hexen-cleric "{\"version\": \"$version\", \"player1Class\": \"Cleric\", $st}" "" "" "$version" hexen
-				fcase hexen-coop "{\"version\": \"$version\", \"player1Class\": \"Mage\", \"player2Present\": true, \"player4Present\": true, \"player4Class\": \"Cleric\", \"initialMap\": 13}" "" "" "$version" hexen
-				fcase hexen-dsda "{\"version\": \"$version\", \"extendedCommands\": \"On, with casual features\", \"player1Class\": \"Mage\"}" -dsdademo "" "$version" hexen
-				craft_raven hexen hexen-cleric "$version" ;;
+				fcase hexen-cleric "{\"game\": \"$game\", \"player1Class\": \"Cleric\", $st}" "" "" hexen
+				fcase hexen-coop "{\"game\": \"$game\", \"player1Class\": \"Mage\", \"player2Present\": true, \"player4Present\": true, \"player4Class\": \"Cleric\", \"initialMap\": 13}" "" "" hexen
+				fcase hexen-dsda "{\"game\": \"$game\", \"extendedCommands\": \"On, with casual features\", \"player1Class\": \"Mage\"}" -dsdademo "" hexen
+				craft_raven hexen hexen-cleric ;;
 		esac
 		if [ "$game" = hexen ] && [ -f "$work/iwad-$version-DEMO3/$version-DEMO3.lmp" ]; then
-			export_check hexen-DEMO3 "$work/iwad-$version-DEMO3/$version-DEMO3.lmp" "{\"importVersion\": \"$version\"}" "--version $version --wads $work/files" "$f=$id"
+			export_check hexen-DEMO3 "$work/iwad-$version-DEMO3/$version-DEMO3.lmp" "{\"importIwad\": \"$id\"}" "--game $game --wads $work/files" "$f=$id"
 		fi
 		[ -n "$first" ] || continue
 		dd="$first/m"

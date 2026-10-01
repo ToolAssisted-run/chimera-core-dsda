@@ -178,20 +178,21 @@ static char *import_error(const char *msg)
 /* A demo as the parts of a Chimera project (lmp-import.h) - for a frontend,
  * which loads the core and calls this instead of Init. The demo is the mounted
  * file "movie"; the WADs it reads are mounted files by their names (the IWAD as
- * importIwad names it, or under its firmware id; the PWADs and patches by the
- * names the demo's footer gives, or importPwads's). The options are settings:
- *   importVersion     the IWAD's release (a version id)
- *   importIwad        the mounted IWAD's name, its hash the release
+ * importIwad names it, else as the demo's footer does; the PWADs and patches by
+ * the names the footer gives, or importPwads's). The options are settings:
+ *   importIwad        the mounted IWAD's name: the game (any release of its IWAD;
+ *                     the project pins the file's hash)
  *   importPwads       the PWADs and patches by name, ';' between, in order
  *   importNoPwads     none, whatever the footer names
  *   importLongtics    a Raven demo recorded with -longtics its header does not say
- *   importRespawn, importFast, importNomonsters   a 1.2 demo's monster flags
+ *   importRespawn, importFast, importNomonsters   the monster flags a Doom 1.0-1.2,
+ *                     Heretic or Hexen demo does not hold
  * The JSON of the parts - "settings", "firmware", "files", "input", "frames",
  * and what the demo is ("format", "tics", "players", "footer", "port",
  * "notes") - or {"error": "why"}. */
 ECL_EXPORT const char *ImportMovie(void)
 {
-	static char version[64], iwad[256], pwad_list[4096];
+	static char iwad[256], pwad_list[4096];
 	static char *pwads[64];
 	free(g_import_result);
 	g_import_result = NULL;
@@ -200,8 +201,7 @@ ECL_EXPORT const char *ImportMovie(void)
 
 	struct lmpi_options o;
 	memset(&o, 0, sizeof o);
-	version[0] = iwad[0] = pwad_list[0] = 0;
-	if (wbx_setting_str("importVersion", version, (int)sizeof version) > 0) o.version = version;
+	iwad[0] = pwad_list[0] = 0;
 	if (wbx_setting_str("importIwad", iwad, (int)sizeof iwad) > 0) o.iwad = iwad;
 	if (wbx_setting_str("importPwads", pwad_list, (int)sizeof pwad_list) >= 0)
 	{

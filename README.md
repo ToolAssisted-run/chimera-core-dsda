@@ -15,28 +15,29 @@ where its input format and its test movies come from.
 
 ## What it is
 
-- **The game is the System, the IWAD's release the Version** (`waterbox.config` "machines" and the `version`
-  setting): a project picks Doom II, Doom, TNT, Plutonia, Heretic, Hexen, Chex Quest, Freedoom: Phase 1 or
-  Phase 2, and then which release of that game's IWAD it runs. **The IWAD is the Version's firmware**, pinned by
-  its hash, so the wizard's folder scan finds it:
+- **The game is the System, its IWAD the firmware** (`waterbox.config` "machines", the `game` setting): a project
+  picks Doom II, Doom, TNT, Plutonia, Heretic, Hexen, Chex Quest, Freedoom: Phase 1 or Phase 2 and brings that
+  game's IWAD - any release of it (Doom 1.666 or 1.9, Ultimate, BFG; a modified IWAD), the project pinning the file's
+  hash. There is no version setting: the IWAD's content and the compatibility level say the rules, as they do for
+  dsda-doom itself.
 
-  | System (`game`) | Version (`version`) | The IWAD (firmware id) |
-  |---|---|---|
-  | Doom II | `doom2-1.9` | `doom2.wad` (1.9) |
-  | Doom | `doom-ultimate` | `doom.wad` (The Ultimate Doom, 1.9) |
-  | Final Doom: TNT - Evilution | `tnt` | `tnt.wad` |
-  | Final Doom: The Plutonia Experiment | `plutonia` | `plutonia.wad` |
-  | Heretic | `heretic-1.2` | `heretic.wad` (1.2) |
-  | Hexen | `hexen-1.1` | `hexen.wad` (1.1) |
-  | Chex Quest | `chex` | `chex.wad` |
-  | Freedoom: Phase 1 | `freedoom1-0.13.0` .. `freedoom1-0.11` (seven releases) | `freedoom1.wad` |
-  | Freedoom: Phase 2 | `freedoom2-0.13.0` .. `freedoom2-0.11` (seven releases) | `freedoom2.wad` |
+  | System (`game`) | The IWAD (firmware id) |
+  |---|---|
+  | Doom II | `doom2.wad` |
+  | Doom | `doom.wad` |
+  | Final Doom: TNT - Evilution | `tnt.wad` |
+  | Final Doom: The Plutonia Experiment | `plutonia.wad` |
+  | Heretic | `heretic.wad` |
+  | Hexen | `hexen.wad` |
+  | Chex Quest | `chex.wad` |
+  | Freedoom: Phase 1 | `freedoom1.wad` |
+  | Freedoom: Phase 2 | `freedoom2.wad` |
 
   The engine tells a game and its mission by the IWAD's name, which is why the firmware ids are the names it
-  knows. Each release pins the hash of the file it was tested with; more releases are a line each in
-  `waterbox/gen-declaration.py`. Chex Quest 2 is a PWAD for Chex Quest (`chex2.wad` in the slot, on the `chex`
-  Version); Chex Quest 3's IWADs (`chex3v.wad`, `chex3d2.wad`) the engine knows, and the core does not declare
-  yet. Chimera shows the Version as a setting until its wizard has a selector for it (`"versionSetting"`).
+  knows. The dumps the core has been tested with (Doom II 1.9, The Ultimate Doom 1.9, TNT, Plutonia, Heretic 1.2,
+  Hexen 1.1, Chex Quest, Freedoom 0.11-0.13.0) are listed in `waterbox/gen-declaration.py` by hash, for telling a
+  demo's game, not as a setting. Chex Quest 2 is a PWAD for Chex Quest (`chex2.wad` in the slot); Chex Quest 3's
+  IWADs (`chex3v.wad`, `chex3d2.wad`) the engine knows, and the core does not declare yet.
 - **PWADs and patches are the project's files** (`file_slots.json`, the `pwad` slot: .wad, .deh, .bex, in load
   order - the WADs as `-file`, then the patches as `-deh`). None for the game itself; the wizard's files step
   asks for none.
@@ -99,20 +100,22 @@ where its input format and its test movies come from.
 
 ```
 build/native/lmp-import demo.lmp --iwad DOOM2.WAD [--wads <folder>]... [-o demo.chimeraProject]
-build/native/lmp-import demo.lmp --version freedoom2-0.13.0 --pwad map.wad --info
+build/native/lmp-import demo.lmp --game freedoom2 --wads <folder> --pwad map.wad --info
 ```
 
 The importer is the core's (`waterbox/lmp-import.cpp`, C++): compiled into core.wbx, where a frontend calls it -
 the export `ImportMovie`, on a loaded core instead of `Init`, the demo mounted as `movie` and the WADs it reads by
-their names, its options as settings (`importVersion`, `importIwad`, `importPwads`, `importNoPwads`,
+their names, its options as settings (`importIwad`, `importPwads`, `importNoPwads`,
 `importLongtics`, `importRespawn`, `importFast`, `importNomonsters`), the project's parts returned as JSON
 (`settings`, `firmware`, `files`, `input`, `frames`, what the demo is, notes) or `{"error": ...}`; the
 declaration's `movieImport` is the dialog Chimera draws for it (the demo, the IWAD as the firmware, the PWADs and
 patches into the slot, the options) - and into the command-line tool (`tools/lmp-import.cpp`, built by `native.mk`
 as `build/native/lmp-import`), which finds the files in folders, pins the package and writes the whole
 `.chimeraProject`. The project it writes is the demo: open it in Chimera (or `chimera-run --project`) with the
-IWAD and the PWADs at hand. The game and its release come from `--iwad` (the file, by its hash), `--version`, or
-the demo's own footer (its `-iwad`, found in `--wads`); the PWADs and patches from the footer's `-file` and `-deh`
+IWAD and the PWADs at hand. The game comes from the IWAD - `--iwad` (the file), `--game` (its IWAD by name, found in
+`--wads`), or the demo's own footer (its `-iwad`, found in `--wads`): a dump the core knows by its hash, else by its
+name and lumps; the firmware is that file, by its own hash, and a fourth episode in it (E4M1) makes a 1.9 demo The
+Ultimate Doom's (complevel 3); the PWADs and patches from the footer's `-file` and `-deh`
 (found by name in `--wads`) or `--pwad`, in order; `--no-pwads` takes none (an IWAD's own demos). `--package` pins
 the project to a package (its version and hash); the settings' names and options are the core's own, compiled in
 from the declaration.
@@ -216,7 +219,7 @@ it plays and does not record, made from those (`tests/craft-demo.py`: 1.2, 1.4, 
 blocks of every layout, footers, special commands, PrBoom+um); a changed option block's project without it is not
 the demo; five demos the importer refuses; the core's `ImportMovie` the same in both builds and as the command
 line's. Then native == sandbox, rerecord and session on a three-player demo; the melt's lag in both builds; turbo,
-also across the melts; the settings in both builds; the declaration up to date; eight refusals; no host clock in
+also across the melts; the settings in both builds; the declaration up to date; seven refusals; no host clock in
 the guest; teeth; and with `-c` an imported project through Chimera's own engine (`chimera-run --project`). With
 `-i`, every IWAD in the folder the declaration pins: its own demos (Doom's, Doom II's, Final Doom's, Chex Quest's,
 Heretic's, Hexen's) imported, Heretic and Hexen demos the engine records (their header's flags, longtics, Hexen's
