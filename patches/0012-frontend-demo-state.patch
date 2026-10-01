@@ -1,0 +1,81 @@
+--- a/prboom2/src/d_main.c
++++ b/prboom2/src/d_main.c
+@@ -69,6 +69,7 @@
+ #include "i_sound.h"
+ #include "i_video.h"
+ #include "g_game.h"
++#include "dsda/excmd.h"
+ #include "hu_stuff.h"
+ #include "wi_stuff.h"
+ #include "st_stuff.h"
+@@ -271,6 +272,8 @@
+ // steps the melt too, a tic a frame (D_StepWipe), where D_Wipe would loop on
+ // the clock until it is done
+ dboolean frontend_steps_wipe;
++const byte *frontend_demo_options;
++int frontend_excmd;
+ dboolean wipe_in_progress;
+ 
+ dboolean D_StepWipe(void)
+@@ -2305,6 +2308,35 @@
+   if (arg->found)
+     rngseed = arg->value.v_int;
+ 
++  // chimera: the frontend's options and extended commands, where a demo's
++  // header sets them - before the game starts. Without a Boom-or-later option
++  // block, an old demo's: what G_ReadDemoHeaderEx forces for one (a game
++  // outside demos has friction and pushers on, which reach even complevel 0 -
++  // a missile on ice bounces off a wall)
++  if (frontend_demo_options)
++    G_ReadOptions(frontend_demo_options);
++  else if (demo_compatibility || raven)
++  {
++    variable_friction = 0;
++    weapon_recoil = 0;
++    allow_pushers = 0;
++    monster_infighting = 1;
++    dogs = 0;
++    dog_jumping = 0;
++    monster_backing = 0;
++    monster_avoid_hazards = 0;
++    monster_friction = 0;
++    help_friends = 0;
++    monkeys = 0;
++    G_Compatibility();
++  }
++  if (frontend_excmd)
++  {
++    dsda_EnableExCmd();
++    if (frontend_excmd > 1)
++      dsda_EnableCasualExCmdFeatures();
++  }
++
+   if (slot == -1 && !userdemo)
+   {
+     if (autostart || netgame)
+--- a/prboom2/src/d_main.h
++++ b/prboom2/src/d_main.h
+@@ -72,6 +72,11 @@
+ extern dboolean frontend_steps_wipe;
+ extern dboolean wipe_in_progress;
+ dboolean D_StepWipe(void);
++// chimera: what a demo's header would set at the start, the frontend's
++// instead: a Boom/MBF/MBF21 option block (G_ReadOptions'), and dsda's extended
++// commands (1, and 2 with the casual features)
++extern const byte *frontend_demo_options;
++extern int frontend_excmd;
+ void D_AddFile (const char *file, wad_source_t source);
+ 
+ extern char* iwadlump;
+--- a/prboom2/src/e6y.c
++++ b/prboom2/src/e6y.c
+@@ -655,7 +655,8 @@
+ {
+   deh_applyCompatibility();
+ 
+-  if (dsda_PlaybackName())
++  // chimera: -emulate is the frontend's too, outside playback
++  if (dsda_PlaybackName() || dsda_Arg(dsda_arg_emulate)->found)
+   {
+     int i;
+     dsda_arg_t* arg;

@@ -153,8 +153,54 @@ static void gate_apply_extras(const char *text, uint8_t *buttons)
 	}
 }
 
+/* a Chimera input log ([Input], LogKey, an entry a frame): the LogKey's
+ * groups of names say what each column of an entry is - an axis's number
+ * ("%5d,") or a button's character ('.' up) - as a project holds its movie */
+#define GATE_MAX_KEY 512
+static int gate_chimera;
+static char *gate_key[GATE_MAX_KEY];  /* the names, NULL between groups */
+static int gate_nkey;
+
+static void gate_parse_key(const char *key)
+{
+	char name[64];
+	int n = 0;
+	for (const char *p = key; *p && *p != '\n' && *p != '\r' && gate_nkey < GATE_MAX_KEY - 1; p++)
+	{
+		if (*p == '#') { if (gate_nkey) gate_key[gate_nkey++] = NULL; n = 0; }
+		else if (*p == '|') { name[n] = 0; gate_key[gate_nkey++] = strdup(name); n = 0; }
+		else if (n < 63) name[n++] = *p;
+	}
+	gate_key[gate_nkey++] = NULL;
+}
+
+static void gate_apply_chimera(const char *line, uint8_t *buttons, int32_t *axes)
+{
+	const char *p = line;
+	if (*p == '|') p++;
+	for (int k = 0; k < gate_nkey; k++)
+	{
+		if (!gate_key[k]) { if (*p == '|') p++; continue; }
+		const int a = gate_find_axis(gate_key[k]);
+		if (a >= 0)
+		{
+			axes[a] = (int32_t)strtol(p, NULL, 10);
+			const char *comma = strchr(p, ',');
+			if (!comma) return;
+			p = comma + 1;
+		}
+		else
+		{
+			if (!*p || *p == '\n') return;
+			if (*p != '.') gate_press_name(gate_key[k], buttons);
+			p++;
+		}
+	}
+}
+
 static void gate_apply_line(const char *line, uint8_t *buttons, int32_t *axes)
 {
+	if (gate_chimera) { gate_apply_chimera(line, buttons, axes); return; }
 	const char *last = strrchr(line, '|');
 	int player = 0;
 	for (const char *p = line; p && last && p < last; p = strchr(p + 1, '|'))
@@ -190,11 +236,17 @@ static int gate_load_movie(const char *path)
 {
 	FILE *f = gate_fopen(path, "r");
 	if (!f) { perror(path); return 0; }
-	char line[1024];
+	char line[8192];
 	long cap = 0;
 	while (fgets(line, sizeof line, f))
 	{
 		if (line[0] == '#') continue; /* a comment, not a step */
+		if (!strncmp(line, "[Input]", 7)) { gate_chimera = 1; continue; }
+		if (gate_chimera)
+		{
+			if (!strncmp(line, "LogKey:", 7)) { gate_parse_key(line + 7); continue; }
+			if (line[0] != '|') continue; /* [/Input], and anything not an entry */
+		}
 		if (gate_movie_len == cap)
 		{
 			cap = cap ? cap * 2 : 1024;

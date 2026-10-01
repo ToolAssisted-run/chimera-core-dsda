@@ -8,7 +8,15 @@
  * Per player, four players: the axes first in BizHawk's order, then the
  * buttons; after the players, the automap's and the camera's controls. A
  * player not in the game has their inputs inactive (IsButtonActive,
- * IsAxisActive), as has "Turn Speed Frac." with shorttics. */
+ * IsAxisActive), as has "Turn Speed Frac." with shorttics.
+ *
+ * Beyond BizHawk's, for what a demo can hold: the axes take a tic command's
+ * whole range (Run and Strafe Speed a signed byte, Weapon Select any weapon
+ * number, the artifact axis any artifact - "Artifact", where BizHawk's shares
+ * the Use Artifact button's name), each player has Pause (the command's
+ * pause, BT_SPECIAL), and with the extendedCommands setting dsda's extended
+ * commands - Jump and Free Look, and God and No Clip with its casual
+ * features - which are inactive otherwise. */
 #ifndef DSDA_INPUT_H
 #define DSDA_INPUT_H
 
@@ -21,12 +29,13 @@ enum dsda_control
 {
 	/* per player (the player is the entry's port) */
 	C_RUN_SPEED, C_STRAFE_SPEED, C_TURN_SPEED, C_TURN_FRAC, C_WEAPON_SELECT, C_MOUSE_RUN, C_MOUSE_TURN,
-	C_LOOK, C_FLY, C_USE_ARTIFACT_AXIS,
+	C_LOOK, C_FLY, C_USE_ARTIFACT_AXIS, C_FREE_LOOK,
 	C_FIRE, C_USE, C_FORWARD, C_BACKWARD, C_TURN_LEFT, C_TURN_RIGHT, C_STRAFE_LEFT, C_STRAFE_RIGHT, C_RUN, C_STRAFE,
 	C_WEAPON_1, C_WEAPON_2, C_WEAPON_3, C_WEAPON_4, C_WEAPON_5, C_WEAPON_6, C_WEAPON_7,
 	C_JUMP, C_END_PLAYER,
 	C_INVENTORY_LEFT, C_INVENTORY_RIGHT, C_USE_ARTIFACT, C_LOOK_UP, C_LOOK_DOWN, C_LOOK_CENTER,
 	C_FLY_UP, C_FLY_DOWN, C_FLY_CENTER,
+	C_PAUSE, C_EX_JUMP, C_GOD, C_NOCLIP,
 	/* the machine's */
 	C_CHANGE_GAMMA,
 	C_AUTOMAP_TOGGLE, C_AUTOMAP_ZOOM_IN, C_AUTOMAP_ZOOM_OUT, C_AUTOMAP_FULL_ZOOM, C_AUTOMAP_FOLLOW,

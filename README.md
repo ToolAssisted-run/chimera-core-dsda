@@ -46,24 +46,44 @@ where its input format and its test movies come from.
 - **A movie is a demo**: every run is played as upstream plays a recorded demo (`patches/0011`): the vanilla
   behaviours dsda keeps for demos - Doom II's short "Now entering" screen, the references a removed thing
   keeps at the old complevels, weapon autoswitch, the skill flags from the arguments - rather than its
-  conveniences outside them. So a demo's inputs as a movie play exactly as the engine plays the demo itself,
-  and a movie's inputs are a demo. (Upstream v0.30 made its "Now entering" screen longer outside demos, which
+  conveniences outside them - and with no Boom-or-later option block, the options dsda's playback forces for
+  an old demo (no friction, no pushers: a missile on Hexen's ice explodes rather than bouncing off a wall;
+  `patches/0012`). So a demo's inputs as a movie play exactly as the engine plays the demo itself, and a
+  movie's inputs are a demo. (Upstream v0.30 made its "Now entering" screen longer outside demos, which
   BizHawk's older engine does not have; the Pistol Start setting stays as BizHawk has it.)
+- **Every demo imports** (`tools/lmp-import.py`, below): whatever a demo dictates - its format's compatibility
+  level, the skill and map, the players and their classes, the monster flags, the turning resolution, a
+  Boom-or-later demo's option block, dsda's extended commands, its footer's arguments - is a setting of the
+  project, its IWAD the firmware, its PWADs the slot's files, and its tics the movie, frame for tic.
 - **The controls are BizHawk's DSDA controller** (`waterbox/dsda-input.c`, `DSDA.Controller.cs`), one for each
   game's format: for each of four players the Run, Strafe and Turn Speed axes (Turn Speed Frac. with longtics),
-  Weapon Select, Mouse Run and Mouse Turn, and for Heretic and Hexen Look, Fly and Use Artifact; the buttons
+  Weapon Select, Mouse Run and Mouse Turn, and for Heretic and Hexen Look, Fly and Artifact; the buttons
   Fire, Use, Forward, Backward, Turn Left and Right (a short tap turns slower), Strafe Left and Right, Run,
   Strafe (turning with it held is strafe50), the weapons, and the Raven games' inventory, look and fly, Hexen's
   Jump and End Player; then the machine's Change Gamma, the automap's twelve controls and the walking camera
   (its mode, speeds and reset). A player not in the game has their inputs inactive. The default keys are
-  BizHawk's (WASD, the mouse, the number keys, Tab for the automap).
+  BizHawk's (WASD, the mouse, the number keys, Tab for the automap; Pause for pause).
+
+  Beyond BizHawk's, for all a demo can hold: the axes take a tic command's whole range - Run and Strafe Speed
+  -128..127 (the keys and the mouse are still held to BizHawk's 50; an axis alone is the command's byte),
+  Weapon Select the weapon's number + 1 up to 16 (the axis is the weapon itself, where a Weapon Select key
+  finds the chainsaw and the super shotgun as the keys of the game do), Artifact any of Hexen's 32 (BizHawk
+  calls it Use Artifact, the name of a button too: one name, two columns no frontend tells apart); each
+  player has Pause (the command's pause); and with the Extended Commands setting dsda's own, Jump and Free
+  Look, and God and No Clip with its casual features.
 - **Settings**: BizHawk's, by the same names and values - the compatibility level (Doom-format games), skill,
   multiplayer mode, initial episode and map, the monster flags, pistol start, co-op spawns, chained episodes,
   always run, the melt, turning resolution (shorttics or longtics), the mouse sensitivities, strafe50, Prevent
   Level Exit and Prevent Game End (the exit is seen and not taken, for level-by-level runs), turbo, the RNG
-  seed (complevel 9 and up), the four players and Hexen's classes; and, not part of the machine, the resolution
-  (1x-12x or BizHawk's aspect-corrected sizes), the volumes, gamma, messages, the HUD and extended HUD, the
-  automap's totals, time, coordinates, overlay, details and trail, full vision and whose view is shown.
+  seed (complevel 7 and up: Boom's first demos hold one too), the four players and Hexen's classes; and, not
+  part of the machine, the resolution (1x-12x or BizHawk's aspect-corrected sizes), the volumes, gamma,
+  messages, the HUD and extended HUD, the automap's totals, time, coordinates, overlay, details and trail, full
+  vision and whose view is shown. And what a demo can dictate beyond them: Solo Net (dsda's -solo-net), the
+  Boom/MBF Options (a Boom-or-later demo's option block as hex - monster memory, friction, pushers, bobbing,
+  demo insurance, infighting, helper dogs, the comp flags - applied where a demo's header applies it), Extended
+  Commands (off, on, on with casual features), Emulate PrBoom+ Version (-emulate), the spechit overflow's base
+  address (-spechit) and the six overflow emulations (spechit, reject, intercepts, playeringame, donut, missed
+  backside).
 - **Properties** (Chimera's `docs/game-cores.md`): a `Game State` block (the tic, the level time, the game
   state, episode, map, skill and complevel, the level's things, lines, sectors and totals, the exit and game
   end, the melt's lag, the RNG indexes, and each player's position, angle and momentum) and each player's
@@ -72,6 +92,33 @@ where its input format and its test movies come from.
   level's things, lines and sectors are domains of their own, in the engine's records.
 - **An engine error halts the machine, not the frontend**: `I_Error` stops the engine where it stands, with its
   message; the machine keeps stepping, silent.
+
+## Importing a demo
+
+```
+tools/lmp-import.py demo.lmp --iwad DOOM2.WAD [--wads <folder>]... [-o demo.chimeraProject]
+tools/lmp-import.py demo.lmp --version freedoom2-0.13.0 --pwad map.wad --info
+```
+
+The project it writes is the demo: open it in Chimera (or `chimera-run --project`) with the IWAD and the PWADs at
+hand. The game and its release come from `--iwad` (the file, by its hash), `--version`, or the demo's own footer
+(its `-iwad`, found in `--wads`); the PWADs and patches from the footer's `-file` and `-deh` (found by name in
+`--wads`) or `--pwad`, in order; `--no-pwads` takes none (an IWAD's own demos). `--package` pins the project to a
+package (its name, version and hash) and reads the declaration from it.
+
+Every format dsda-doom plays: Doom 1.0-1.2 (no version byte; its monster flags are not in it - the footer's,
+or `--respawn`, `--fast`, `--nomonsters`), 1.4-1.9 (the complevel as `G_GetOriginalDoomCompatLevel` gives it:
+the footer's `-complevel`, else 1 below 1.7, 3 on a game with a fourth episode, 4 on Final Doom, 2 otherwise),
+TASDoom (its own byte order), 1.9 longtics, Boom 2.00-2.02 (and its compatibility flag), LxDoom, MBF, PrBoom
+2.1-latest, MBF21 (with an older dsda's 23 comp flags too), dsda's own format (its extended commands each tic:
+jump, free look, god, no clip), PrBoom+um's UMAPINFO header, Heretic and Hexen (their header's respawn,
+longtics and no-monsters bits; Hexen's classes, and its map as the warp number MAPINFO gives it - the core's
+Initial Map is what `-warp` takes, as BizHawk's), the footer's arguments (`-solo-net`, `-coop_spawns`,
+`-chain_episodes`, `-emulate`, `-spechit`, the overflows' `-set`), special commands (the pause; a saved game's,
+which dsda ignores) and the join marker. The melt is off in the project, as BizHawk's importers have it: a
+demo's tics are the game's. Refused, saying why: more than four players, a start from a key frame (a saved
+game in the demo), a game saved or loaded mid-demo, a format dsda-doom does not play, a versionless demo
+without its game, a PWAD the footer names and no folder has.
 
 ## What has been run
 
@@ -108,6 +155,11 @@ savestate every frame.
 - `0010-patch-spare-column.patch`: a spare column after a patch's last: a sprite's drawer can read past its
   pixels, which were the column table's pointers - a picture that differed with where memory lay.
 - `0011-demo-exact.patch`: every run played as a recorded demo is (see above); `-pistolstart` kept.
+- `0012-frontend-demo-state.patch`: what a demo's header sets at the start, the frontend's: a Boom-or-later
+  option block (`G_ReadOptions`), or an old demo's forced options; dsda's extended commands; `-emulate` outside
+  playback too.
+- `0013-checkspot-absent-players.patch`: a deathmatch start skips the players not in the game (without player
+  one, vanilla's `G_CheckSpot` dereferenced its missing body).
 
 ## Building
 
@@ -128,14 +180,21 @@ engine's own data, is built from upstream's `data/` with its own tool. `waterbox
 
 `./waterbox/run-gate.sh [-m <miniBox>] [-f <Freedoom 0.13.0>] [-i <IWAD folder>] [-c <chimera-run>]`. The
 commercial IWADs are not the core's to carry, so the gate's content is **Freedoom** (BSD-3-Clause, downloaded
-from its releases when `-f` does not name it) and **levels of its own** (`tests/make-rooms.py`: a PWAD of
-one-room maps with an exit switch, and a demo through them): each demo as a movie = the engine playing it
-(`tests/lmp2sol.py` converts); the levels' exits and intermissions the same; native == sandbox, rerecord and
-session on a three-player demo; the melt's lag in both builds; turbo, also across the melts; the settings in
-both builds (the skill, complevel, map and monsters where the engine keeps them, the resolution, a PWAD's and a
-patch's DeHackEd); the declaration up to date; five refusals; no host clock in the guest; teeth; and with `-c`
-the package through Chimera's own engine. With `-i`, every IWAD in the folder the declaration pins: its own
-demos (the Doom-format ones), native == sandbox and session.
+from its releases when `-f` does not name it), **levels of its own** (`tests/make-rooms.py`: a PWAD of
+one-room maps with an exit switch, and a demo through them) and **demos the engine records**: each demo is
+imported (`tools/lmp-import.py`) and its project's movie played = the engine playing the demo itself, tic for
+tic - Freedoom's eight; the levels' exits and intermissions; a demo of every format dsda-doom records, from a
+movie that works every input (`tests/make-recording-movie.py`: every complevel, longtics and shorttics,
+dsda's format with its extended commands, co-op, deathmatch, the monster flags, a seed, the footer's
+arguments) and of every format it plays and does not record, made from those (`tests/craft-demo.py`: 1.2,
+1.4, 1.5, LxDoom, Boom 2.00, option blocks of every layout, footers, special commands, PrBoom+um); a changed
+option block's project without it is not the demo; five demos the importer refuses. Then native == sandbox,
+rerecord and session on a three-player demo; the melt's lag in both builds; turbo, also across the melts; the
+settings in both builds; the declaration up to date; eight refusals; no host clock in the guest; teeth; and
+with `-c` an imported project through Chimera's own engine (`chimera-run --project`). With `-i`, every IWAD in
+the folder the declaration pins: its own demos (Doom's, Doom II's, Final Doom's, Chex Quest's, Heretic's,
+Hexen's) imported, Heretic and Hexen demos the engine records (their header's flags, longtics, Hexen's classes
+and warp numbers, co-op, dsda's format), native == sandbox and session.
 
 ## Where things are
 
@@ -146,7 +205,9 @@ demos (the Doom-format ones), native == sandbox and session.
 - `waterbox/platform/`: what the engine's SDL and OpenGL code was - the video (headless), the SDL shim, the
   clock, the stubs, `detmath.c` (the math the renderer calls, the same in every build).
 - `waterbox/wbx-entry.c`: the exports. `run-native.c`, `run-wbx.c`, `gate-harness.h`: the harnesses.
-- `waterbox/gen-declaration.py`, `waterbox-base.json`: the declaration. `waterbox/tests/`: the gate's tools.
+- `tools/lmp-import.py`: the importer.
+- `waterbox/gen-declaration.py`, `waterbox-base.json`: the declaration. `waterbox/tests/`: the gate's tools (the
+  rooms, the recording movie, the crafted demos, a project as a harness folder).
 - `docs/PLAN.md`: the decisions and what is left.
 
 ## Licence

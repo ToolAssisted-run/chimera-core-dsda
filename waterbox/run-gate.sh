@@ -1,12 +1,39 @@
 #!/bin/sh
 # run-gate.sh - the DSDA core's gate: the native reference and core.wbx are
-# the same machine, and a movie of a demo's inputs is the demo. It runs on
-# Freedoom 0.13.0 (free: the gate fetches it, or -f names it) and, when -i names
-# a folder of them, on the IWADs the declaration pins.
+# the same machine, and a demo imported as a Chimera project (tools/
+# lmp-import.py) is the demo. It runs on Freedoom 0.13.0 (free: the gate fetches
+# it, or -f names it) and, when -i names a folder of them, on the IWADs the
+# declaration pins.
 #
-# Every leg says what it compared. The legs:
+# Every leg says what it compared. A demo is "the engine's own playback, tic
+# for tic" when the project's movie, played by the core, and the engine
+# playing the .lmp itself (-playdemo, through the native reference's
+# gate-args) agree at every tic on the map, the level time, the game state,
+# the game's RNG, the kills, and each player's position, angle and health.
+# The legs:
+#   demos        Freedoom's eight demos (DEMO1-4 of both phases: 1.9 demos of
+#                one to three players), imported
+#   levels       the gate's own three rooms (tests/make-rooms.py: a PWAD of
+#                one-room maps, an exit switch in each) and a demo through them,
+#                imported: the exits and intermissions; with the melt
+#                (renderWipescreen), native = sandbox and turbo across it
+#   formats      a demo of every format dsda-doom records - each complevel (1.666,
+#                1.9 at 2, 3 and 4, TASDoom, Boom 2.01/2.02, MBF, PrBoom 2.1 to
+#                latest, MBF21), longtics and shorttics, dsda's own format with its
+#                extended commands, co-op, deathmatch, alternate deathmatch
+#                without player one, the monster flags, a seed, -solo-net and
+#                -coop_spawns, levels and intermissions - recorded by the engine
+#                from a movie that works every input (tests/make-recording-movie.py),
+#                and those it plays and does not record (tests/craft-demo.py): 1.2,
+#                1.4, 1.5, LxDoom, Boom 2.00, option blocks of every layout, a
+#                footer's arguments, the join marker and save-game specials,
+#                PrBoom+um's header - each imported; a changed option block's
+#                project without it is not the demo (teeth)
+#   imports      what the importer refuses, saying why: a fifth player, a start
+#                from a key frame, a game saved mid-demo, a version no format
+#                has, a versionless demo without its game
 #   equivalence  run-native and run-wbx on Freedoom's DEMO4 (Phase 1's E4M6,
-#                three players) as a movie: every step's picture, sound and lag,
+#                three players), imported: every step's picture, sound and lag,
 #                the machine's clock and the Game State domain (the raw record
 #                domains - Players, Things, Lines, Sectors - hold the engine's
 #                pointers, which differ between the builds, so only their sizes)
@@ -17,16 +44,6 @@
 #   turbo        the first half's pictures not converted: the rest the same (the
 #                engine draws on - what drawing touches is the machine's), the
 #                first half's pictures really not delivered
-#   demos        each of Freedoom's eight demos (DEMO1-4 of both phases: 1.9
-#                demos of one to three players) converted to a movie
-#                (tests/lmp2sol.py) = the engine playing the demo itself
-#                (-playdemo, through the native reference's gate-args): every
-#                tic's map, level time, game RNG, kills, and each player's
-#                position, angle and health
-#   levels       the gate's own three rooms (tests/make-rooms.py: a PWAD of one-room
-#                maps, an exit switch in each) and a demo through them - the
-#                exits and intermissions, as a movie = -playdemo; with the melt
-#                (renderWipescreen), native = sandbox and turbo across it
 #   settings     the skill, complevel, map and noMonsters where the engine keeps
 #                them (both builds); scaleFactor 2's picture is 640x400; the
 #                pwad slot's WAD (a DEHACKED lump) and patch (.deh) each change
@@ -34,19 +51,23 @@
 #   declaration  gen-declaration.py writes what the repo holds (waterbox.config,
 #                file_slots.json, default_keybinds.json, dsda-versions.h)
 #   refusals     no IWAD, a version that is another game's, a version the core
-#                does not have, no player, scaleFactor 13: each says why
+#                does not have, no player, scaleFactor 13, an option block that
+#                is not hex, one where the complevel has none, one of the wrong
+#                size: each says why
 #   clock        the guest has no clock of its own: time() and clock_gettime()
 #                are the core's
 #   teeth        the equivalence comparison sees a one-step difference
 #   engine       (with -c) the package through Chimera's own engine, headless:
-#                chimera-run plays Freedoom's DEMO1 (Phase 2's MAP03) as a movie
-#                in Chimera's format to the harness's Game State, and the same
-#                with --rerecord
+#                chimera-run --project plays an imported demo's project (Phase
+#                2's DEMO1, pinned to the package; its firmware given, as the
+#                tool takes it) to the harness's Game State, and the same with
+#                --rerecord
 #   iwads        (with -i) each IWAD in the folder whose SHA1 the declaration
-#                pins: its own demos, when they are vanilla's (Doom, Doom II,
-#                Final Doom, Chex Quest), = -playdemo, and native = sandbox and
-#                session on the first; Heretic and Hexen (whose demos are not
-#                vanilla's) a scripted walk, native = sandbox and session
+#                pins: its own demos - Doom's, Doom II's, Final Doom's, Chex
+#                Quest's, Heretic's and Hexen's - imported; Heretic and Hexen
+#                demos recorded by the engine (the Raven header's flags, longtics,
+#                Hexen's classes and warp numbers, co-op, dsda's format); native
+#                = sandbox and session on each IWAD's first demo
 #
 # usage: run-gate.sh [-m <miniBox dir>] [-f <Freedoom 0.13.0 dir>] [-i <IWAD dir>]
 #                    [-c <chimera-run>]
@@ -90,11 +111,12 @@ native="$root/build/native/run-native"
 wbx="$root/build/native/run-wbx"
 core="$root/build/guest/core.wbx"
 wad="$root/build/dsda-doom.wad"
-lmp2sol="$here/tests/lmp2sol.py"
+importer="$root/tools/lmp-import.py"
+tests="$here/tests"
 
 work="$root/build/gate"
 rm -rf "$work"
-mkdir -p "$work"
+mkdir -p "$work/files"
 fails=0
 pass() { echo "PASS $*"; }
 fail() { echo "FAIL $*"; fails=$((fails + 1)); }
@@ -125,16 +147,28 @@ for f in cfg["firmware"]:
     v = f["requiredWhen"]["is"]
     print(f["sha1"].upper(), v, game[v], f["id"])
 PY
+# a WAD's lump to a file: wad_lump <wad> <LUMP> <out>
+wad_lump() {
+	python3 - "$@" <<'PY'
+import struct, sys
+d = open(sys.argv[1], 'rb').read()
+_, n, o = struct.unpack('<4sii', d[:12])
+for i in range(n):
+    p, s, name = struct.unpack('<ii8s', d[o + 16 * i:o + 16 * i + 16])
+    if name.rstrip(b'\0').decode('latin1').upper() == sys.argv[2]:
+        open(sys.argv[3], 'wb').write(d[p:p + s]); break
+else:
+    sys.exit('no lump ' + sys.argv[2])
+PY
+}
 
 # a work folder: <dir> <IWAD file> <firmware id> [settings JSON]
 mkwork() {
 	mkdir -p "$1"
-	ln -sf "$(cd "$(dirname "$2")" && pwd)/$(basename "$2")" "$1/$3"
+	cp "$2" "$1/$3"
 	cp "$wad" "$1/dsda-doom.wad"
 	[ -z "${4:-}" ] || printf '%s' "$4" > "$1/settings"
 }
-# run-wbx mounts the work folder's regular files: a link is copied in
-wbx_ready() { for f in "$1"/*.wad; do [ -L "$f" ] && cp --remove-destination "$(readlink -f "$f")" "$f"; done; true; }
 
 echo "== Freedoom 0.13.0"
 if [ -z "$freedoom" ]; then
@@ -153,54 +187,84 @@ for p in 1 2; do
 	s="$(sha1_of "$freedoom/freedoom$p.wad")"
 	if grep -q "^$s freedoom$p-0.13.0 " "$work/pinned"; then
 		pass "freedoom: freedoom$p.wad is 0.13.0's, as the declaration pins it ($s)"
+		ln -sf "$(cd "$freedoom" && pwd)/freedoom$p.wad" "$work/files/freedoom$p.wad"
 	else
 		fail "freedoom: $freedoom/freedoom$p.wad ($s) is not 0.13.0's"; exit 1
 	fi
 done
+fd2="$freedoom/freedoom2.wad"
+# the IWADs -i names, in the files folder under their firmware ids
+if [ -n "$iwads" ]; then
+	for f in "$iwads"/*; do
+		[ -f "$f" ] || continue
+		line="$(grep "^$(sha1_of "$f") " "$work/pinned" | head -1 || true)"
+		[ -n "$line" ] || continue
+		set -- $line
+		case $3 in freedoom1|freedoom2) continue ;; esac
+		ln -sf "$(cd "$(dirname "$f")" && pwd)/$(basename "$f")" "$work/files/$4"
+		echo "$2 $3 $4" >> "$work/iwads"
+	done
+fi
 
-# a vanilla demo as a movie and as the engine's own: <dir> <IWAD> <firmware id>
-# <version> <game> <the IWAD's LUMP, or an .lmp> <leg> [a PWAD, in the slot]
-demo_pair() {
-	d="$1"
+props="Game.Tic,Game.Map,Game.Level Time,Game.State,RNG.Index,Level.Total Kills"
+for i in 1 2 3 4; do props="$props,P$i.X,P$i.Y,P$i.Z,P$i.Angle,P$i.Health"; done
+
+# import_check <dir> <demo.lmp> <leg> [importer arguments...]: the demo imported
+# (dir/p.chimeraProject), its movie = the engine's own playback
+import_check() {
+	d="$1"; lmp="$2"; leg="$3"; shift 3
 	mkdir -p "$d"
-	case "$6" in
-		*.lmp) cp "$6" "$d/demo.lmp" ;;
-		*) python3 "$lmp2sol" --extract "$2" "$6" "$d/demo.lmp" ;;
-	esac
-	n=$(python3 "$lmp2sol" "$d/demo.lmp" "$d/movie.sol" "$d/settings.json" "$4" "$5")
-	mkwork "$d/m" "$2" "$3" "$(cat "$d/settings.json")"
-	mkwork "$d/p" "$2" "$3" "$(cat "$d/settings.json")"
-	cp "$d/demo.lmp" "$d/p/"
-	if [ -n "${8:-}" ]; then
-		for x in m p; do cp "$8" "$d/$x/"; printf '{"pwad": ["%s"]}' "$(basename "$8")" > "$d/$x/slots"; done
+	if ! python3 "$importer" "$lmp" -o "$d/p.chimeraProject" --wads "$work/files" "$@" 2> "$d/import.err"; then
+		fail "$leg: $(basename "$lmp") does not import: $(tail -1 "$d/import.err")"; return 0
 	fi
+	if ! n=$(python3 "$tests/project-work.py" "$d/p.chimeraProject" "$d/m" "$wad" "$work/files" 2> "$d/work.err"); then
+		fail "$leg: $(basename "$lmp")'s project: $(tail -1 "$d/work.err")"; return 0
+	fi
+	cp -r "$d/m" "$d/p"
+	rm "$d/p/movie.txt"
+	cp "$lmp" "$d/p/demo.lmp"
 	echo "-playdemo demo.lmp" > "$d/p/gate-args"
-	props="Game.Tic,Game.Map,Game.Level Time,Game.State,RNG.Index,Level.Total Kills"
-	for i in 1 2 3 4; do props="$props,P$i.X,P$i.Y,P$i.Z,P$i.Angle,P$i.Health"; done
-	"$native" "$d/m" --frames "$n" --movie "$d/movie.sol" --trace "$d/tm" --trace-props "$props" > "$d/m.out" 2>&1
-	"$native" "$d/p" --frames "$n" --trace "$d/tp" --trace-props "$props" > "$d/p.out" 2>&1
-	players=$(python3 -c "import sys; print(sum(open(sys.argv[1], 'rb').read()[9:13]))" "$d/demo.lmp")
+	"$native" "$d/m" --frames "$n" --movie "$d/m/movie.txt" --trace "$d/tm" --trace-props "$props" > "$d/m.out" 2>&1 || true
+	"$native" "$d/p" --frames "$n" --trace "$d/tp" --trace-props "$props" > "$d/p.out" 2>&1 || true
 	maps="$(awk 'NR > 1 { print $5 }' "$d/tm" | uniq | tr '\n' ' ')"
-	ps=s; [ "$players" != 1 ] || ps=""
-	ms=""; case "${maps% }" in *" "*) ms=s ;; esac
-	what="$(basename "$6") ($n tics, $players player$ps, map$ms ${maps% })"
+	what="$(head -1 "$d/import.err" | sed 's/^[^:]*: //')"
 	if [ "$(wc -l < "$d/tm")" -gt "$n" ] && cmp -s "$d/tm" "$d/tp"; then
-		pass "$7: $what as a movie = the engine's own playback, tic for tic"
+		pass "$leg: $(basename "$lmp") - $what, map${maps% } - imported = the engine's own playback, tic for tic"
 	else
-		fail "$7: $what as a movie != the engine's playback: $(diff "$d/tm" "$d/tp" | head -1)"
+		fail "$leg: $(basename "$lmp") - $what - imported != the engine's playback: $(diff "$d/tm" "$d/tp" | head -1)"
 	fi
+}
+
+# record <dir> <version> <game> <frames> <settings JSON> [extra gate-args] [PWAD]:
+# the engine records dir/rec.lmp from a movie that works every input
+record() {
+	d="$1"; version="$2"; game="$3"; frames="$4"; settings="$5"; extra="${6:-}"; pwad="${7:-}"
+	id="$(awk -v v="$version" '$2 == v { print $4 }' "$work/pinned" | head -1)"
+	mkwork "$d/r" "$work/files/$id" "$id" "$settings"
+	if [ -n "$pwad" ]; then
+		cp "$pwad" "$d/r/"
+		printf '{"pwad": ["%s"]}' "$(basename "$pwad")" > "$d/r/slots"
+	fi
+	python3 "$tests/make-recording-movie.py" "$d/r/settings" "$game" "$frames" "$d/rec-movie.txt"
+	echo "-record $d/rec $extra" > "$d/r/gate-args"
+	"$native" "$d/r" --frames "$frames" --movie "$d/rec-movie.txt" > "$d/r.out" 2>&1 || true
+	[ -f "$d/rec.lmp" ] || { fail "formats: $(basename "$d") recorded nothing: $(grep -m1 loadError "$d/r.out" || true)"; return 1; }
 }
 
 echo "== demos"
 for p in 1 2; do
 	for k in 1 2 3 4; do
-		demo_pair "$work/demo$p-$k" "$freedoom/freedoom$p.wad" "freedoom$p.wad" "freedoom$p-0.13.0" "freedoom$p" "DEMO$k" "demos (freedoom$p)"
+		mkdir -p "$work/demo$p-$k"
+		wad_lump "$freedoom/freedoom$p.wad" DEMO$k "$work/demo$p-$k/freedoom$p-DEMO$k.lmp"
+		# an IWAD's own demos play from it alone (DEMO3's footer names the fix
+		# Phase 2's MAP22 was recorded with, since in the IWAD)
+		import_check "$work/demo$p-$k" "$work/demo$p-$k/freedoom$p-DEMO$k.lmp" "demos (freedoom$p)" --version freedoom$p-0.13.0 --no-pwads
 	done
 done
 
 echo "== levels (the gate's own: three rooms, their exits, the intermissions)"
-python3 "$here/tests/make-rooms.py" "$work/rooms.wad" "$work/rooms.lmp"
-demo_pair "$work/levels" "$freedoom/freedoom2.wad" freedoom2.wad freedoom2-0.13.0 freedoom2 "$work/rooms.lmp" levels "$work/rooms.wad"
+python3 "$tests/make-rooms.py" "$work/files/rooms.wad" "$work/rooms.lmp"
+import_check "$work/levels" "$work/rooms.lmp" levels --version freedoom2-0.13.0 --pwad "$work/files/rooms.wad"
 if [ "$(awk 'NR > 1 { print $5 }' "$work/levels/tm" | uniq | tr '\n' ' ')" = "1 2 3 4 " ]; then
 	pass "levels: the demo exits MAP01, MAP02 and MAP03 and each intermission, to Freedoom's MAP04"
 else
@@ -209,14 +273,12 @@ fi
 # the melt: the same levels with renderWipescreen - its steps are lag, in both
 # builds, and turbo across it
 ml="$work/melt"
-mkwork "$ml" "$freedoom/freedoom2.wad" freedoom2.wad "$(python3 -c "import json, sys; s = json.load(open(sys.argv[1])); s['renderWipescreen'] = True; print(json.dumps(s))" "$work/levels/settings.json")"
-cp "$work/rooms.wad" "$ml/"
-printf '{"pwad": ["rooms.wad"]}' > "$ml/slots"
-wbx_ready "$ml"
-mn=$(grep -vc '^#' "$work/levels/movie.sol")
-"$native" "$ml" --frames "$mn" --movie "$work/levels/movie.sol" > "$ml.n" 2>/dev/null
-"$wbx" "$core" "$ml" --frames "$mn" --movie "$work/levels/movie.sol" > "$ml.w" 2>/dev/null
-"$wbx" "$core" "$ml" --frames "$mn" --movie "$work/levels/movie.sol" --turbo > "$ml.t" 2>/dev/null
+cp -r "$work/levels/m" "$ml"
+python3 -c "import json, sys; s = json.load(open(sys.argv[1])); s['renderWipescreen'] = True; json.dump(s, open(sys.argv[1], 'w'))" "$ml/settings"
+mn=$(grep -c '^|' "$ml/movie.txt")
+"$native" "$ml" --frames "$mn" --movie "$ml/movie.txt" > "$ml.n" 2>/dev/null
+"$wbx" "$core" "$ml" --frames "$mn" --movie "$ml/movie.txt" > "$ml.w" 2>/dev/null
+"$wbx" "$core" "$ml" --frames "$mn" --movie "$ml/movie.txt" --turbo > "$ml.t" 2>/dev/null
 lag=$(value "$ml.n" lagFrames)
 if [ "${lag:-0}" -gt 0 ]; then
 	compare xdigests melt "$ml.n" "$ml.w" "native = sandbox with the melt ($lag of $mn steps lag)"
@@ -231,11 +293,80 @@ else
 	fail "melt: turbo changed the machine"; diff "$ml.t.d" "$ml.w.d" | head -5
 fi
 
+echo "== formats (recorded by the engine, crafted, imported)"
+fmt="$work/formats"
+st='"turningResolution": "8 bits (shorttics)"'
+fdv=freedoom2-0.13.0
+fcase() { # fcase <name> <settings JSON> [extra gate-args] [PWAD] [version game]
+	n="$1"; set_="$2"; ex="${3:-}"; pw="${4:-}"; v="${5:-$fdv}"; g="${6:-freedoom2}"
+	if record "$fmt/$n" "$v" "$g" 1000 "$set_" "$ex" "$pw"; then
+		cp "$fmt/$n/rec.lmp" "$fmt/$n/$n.lmp"
+		import_check "$fmt/$n/i" "$fmt/$n/$n.lmp" formats --version "$v"
+	fi
+}
+for cl in 1 2 4 6 8 9 11 13 14 15 16; do
+	fcase cl$cl "{\"version\": \"$fdv\", \"compatibilityLevel\": \"$cl\", $st}"
+done
+fcase cl3 "{\"version\": \"freedoom1-0.13.0\", \"compatibilityLevel\": \"3\", $st}" "" "" freedoom1-0.13.0 freedoom1
+fcase cl2-longtics "{\"version\": \"$fdv\", \"compatibilityLevel\": \"2\"}"
+fcase cl17 "{\"version\": \"$fdv\", \"compatibilityLevel\": \"17\"}"
+fcase cl21 "{\"version\": \"$fdv\", \"compatibilityLevel\": \"21\"}"
+fcase cl21-shorttics "{\"version\": \"$fdv\", \"compatibilityLevel\": \"21\", $st}"
+fcase cl21-dsda "{\"version\": \"$fdv\", \"compatibilityLevel\": \"21\", \"extendedCommands\": \"On, with casual features\"}" -dsdademo
+fcase cl9-dsda "{\"version\": \"$fdv\", \"compatibilityLevel\": \"9\", \"extendedCommands\": \"On, with casual features\", $st}" -dsdademo
+fcase cl2-coop3 "{\"version\": \"$fdv\", \"compatibilityLevel\": \"2\", \"player2Present\": true, \"player3Present\": true, $st}"
+fcase cl9-dm4 "{\"version\": \"$fdv\", \"compatibilityLevel\": \"9\", \"multiplayerMode\": \"Deathmatch\", \"player2Present\": true, \"player3Present\": true, \"player4Present\": true, \"displayPlayer\": 2, $st}"
+fcase cl21-altdm "{\"version\": \"$fdv\", \"compatibilityLevel\": \"21\", \"multiplayerMode\": \"Alternate Deathmatch (v2.0)\", \"player1Present\": false, \"player2Present\": true, \"player4Present\": true}"
+fcase cl11-flags "{\"version\": \"$fdv\", \"compatibilityLevel\": \"11\", \"fastMonsters\": true, \"monstersRespawn\": true, \"skillLevel\": \"2\", \"initialMap\": 5, \"rngSeed\": -123456789, $st}"
+fcase cl3-nomonsters "{\"version\": \"freedoom1-0.13.0\", \"compatibilityLevel\": \"3\", \"noMonsters\": true, \"initialEpisode\": 2, \"initialMap\": 3, \"skillLevel\": \"5\", $st}" "" "" freedoom1-0.13.0 freedoom1
+fcase rooms-cl9 "{\"version\": \"$fdv\", \"compatibilityLevel\": \"9\", $st}" "" "$work/files/rooms.wad"
+fcase rooms-cl21-solonet "{\"version\": \"$fdv\", \"compatibilityLevel\": \"21\", \"soloNet\": true, \"coopSpawns\": true}" "" "$work/files/rooms.wad"
+if grep -q '"soloNet": true' "$fmt/rooms-cl21-solonet/i/p.chimeraProject" && grep -q '"coopSpawns": true' "$fmt/rooms-cl21-solonet/i/p.chimeraProject"; then
+	pass "formats: the footer's -solo-net and -coop_spawns are the imported project's soloNet and coopSpawns"
+else
+	fail "formats: the footer's -solo-net and -coop_spawns did not reach the project"
+fi
+for kc in doom12:cl2 doom14:cl1 doom15:cl1 lxdoom:cl9 boom200:cl9 options:cl9 options:cl11 options:cl17 options:cl21 footer:cl2 footer:cl9 markers:cl2 markers:cl9 umapinfo:cl9 umapinfo:cl21; do
+	k=${kc%%:*}; src=${kc#*:}
+	[ -f "$fmt/$src/rec.lmp" ] || continue
+	mkdir -p "$fmt/craft-$k-$src"
+	python3 "$tests/craft-demo.py" "$k" "$fmt/$src/rec.lmp" "$fmt/craft-$k-$src/$k-$src.lmp"
+	import_check "$fmt/craft-$k-$src/i" "$fmt/craft-$k-$src/$k-$src.lmp" formats --version $fdv
+done
+# teeth: the MBF demo whose options were changed, imported without them, is not the demo
+t="$fmt/craft-options-cl11/i"
+if [ -f "$t/p.chimeraProject" ]; then
+	cp -r "$t/m" "$t/teeth"
+	python3 -c "import json, sys; s = json.load(open(sys.argv[1])); s['demoOptions'] = ''; json.dump(s, open(sys.argv[1], 'w'))" "$t/teeth/settings"
+	"$native" "$t/teeth" --frames "$(grep -c '^|' "$t/teeth/movie.txt")" --movie "$t/teeth/movie.txt" --trace "$t/tt" --trace-props "$props" > /dev/null 2>&1 || true
+	if cmp -s "$t/tt" "$t/tp"; then fail "formats: the MBF demo's changed options make no difference"; else pass "formats: without its changed option block, the MBF demo's project is not the demo (teeth)"; fi
+fi
+
+echo "== imports (what the importer refuses)"
+ref="$work/refused"
+mkdir -p "$ref"
+refuse_import() { # refuse_import <craft> <source> <expected> <what> [importer arguments]
+	k="$1"; src="$2"; want="$3"; what="$4"; shift 4
+	[ -f "$fmt/$src/rec.lmp" ] || { fail "imports: $what - no $src recording"; return 0; }
+	python3 "$tests/craft-demo.py" "$k" "$fmt/$src/rec.lmp" "$ref/$k.lmp"
+	if out="$(python3 "$importer" "$ref/$k.lmp" --info "$@" 2>&1)"; then
+		fail "imports: $what - imported"
+	elif echo "$out" | grep -q -- "$want"; then
+		pass "imports: $what - $(echo "$out" | head -1 | sed 's/^[^:]*: //')"
+	else
+		fail "imports: $what - $(echo "$out" | tail -1)"
+	fi
+}
+refuse_import players5 cl9 "the core has four" "a fifth player" --version $fdv
+refuse_import keyframe cl21-dsda "starts from a key frame" "a start from a key frame" --version $fdv
+refuse_import excmdsave cl21-dsda "saves or loads a game" "a game saved mid-demo" --version $fdv
+refuse_import badversion cl2 "no demo format dsda-doom knows" "a version no format has" --version $fdv
+refuse_import doom12 cl2 "does not say which IWAD" "a versionless demo without its game"
+
 echo "== equivalence (Freedoom's DEMO4, three players)"
 eq="$work/demo1-4/m"
-wbx_ready "$eq"
-movie="$work/demo1-4/movie.sol"
-frames=$(grep -vc '^#' "$movie")
+movie="$eq/movie.txt"
+frames=$(grep -c '^|' "$movie")
 "$native" "$eq" --frames "$frames" --movie "$movie" > "$work/n.txt" 2>/dev/null
 "$wbx" "$core" "$eq" --frames "$frames" --movie "$movie" > "$work/w.txt" 2> "$work/w.err"
 compare xdigests equivalence "$work/n.txt" "$work/w.txt" "native = sandbox, $frames steps (clock $(value "$work/n.txt" clock) ms, lag $(value "$work/n.txt" lagFrames))"
@@ -255,11 +386,8 @@ else
 fi
 
 echo "== settings"
-fd2="$freedoom/freedoom2.wad"
 mkwork "$work/set" "$fd2" freedoom2.wad '{"version": "freedoom2-0.13.0", "skillLevel": "1", "compatibilityLevel": "9", "initialMap": 7, "noMonsters": true}'
-wbx_ready "$work/set"
 mkwork "$work/set0" "$fd2" freedoom2.wad '{"version": "freedoom2-0.13.0"}'
-wbx_ready "$work/set0"
 for build in native wbx; do
 	if [ $build = native ]; then run="$native"; else run="$wbx $core"; fi
 	sp="Game.Skill,Game.Compatibility Level,Game.Map,Level.Total Kills"
@@ -294,7 +422,6 @@ for c in wad:health42.wad:42 deh:health37.deh:37; do
 	mkwork "$d" "$fd2" freedoom2.wad '{"version": "freedoom2-0.13.0"}'
 	cp "$work/$file" "$d/"
 	printf '{"pwad": ["%s"]}' "$file" > "$d/slots"
-	wbx_ready "$d"
 	"$native" "$d" --frames 2 --trace "$d/tn" --trace-props P1.Health > /dev/null 2>&1
 	"$wbx" "$core" "$d" --frames 2 --trace "$d/tw" --trace-props P1.Health > /dev/null 2>&1
 	if [ "$(last "$d/tn" 1)" = "$want" ] && [ "$(last "$d/tw" 1)" = "$want" ]; then
@@ -329,6 +456,12 @@ mkwork "$work/no-player" "$fd2" freedoom2.wad '{"version": "freedoom2-0.13.0", "
 refuse "$work/no-player" "no player is present" "no player"
 mkwork "$work/scale13" "$fd2" freedoom2.wad '{"version": "freedoom2-0.13.0", "scaleFactor": 13}'
 refuse "$work/scale13" "it goes from 1 to 12" "scaleFactor 13"
+mkwork "$work/opt-hex" "$fd2" freedoom2.wad '{"version": "freedoom2-0.13.0", "compatibilityLevel": "9", "demoOptions": "0g"}'
+refuse "$work/opt-hex" "demoOptions is not hex" "an option block that is not hex"
+mkwork "$work/opt-cl2" "$fd2" freedoom2.wad "{\"version\": \"freedoom2-0.13.0\", \"compatibilityLevel\": \"2\", \"demoOptions\": \"$(printf '%0128d' 0)\"}"
+refuse "$work/opt-cl2" "complevel 2 has none" "an option block at complevel 2"
+mkwork "$work/opt-size" "$fd2" freedoom2.wad '{"version": "freedoom2-0.13.0", "compatibilityLevel": "11", "demoOptions": "0102"}'
+refuse "$work/opt-size" "is 2 bytes; complevel 11's option block is 64" "an option block of the wrong size"
 
 echo "== clock"
 # the engine's time() and clock_gettime() are the core's (--wrap); musl's own
@@ -345,9 +478,12 @@ else
 fi
 
 echo "== teeth"
-awk '!/^#/ { n++ } n == 501 && !/^#/ { print "||  50,   0,   0,   0,...||   0,   0,   0,   0,...||   0,   0,   0,   0,...|"; next } { print }' "$movie" > "$work/teeth.sol"
-"$native" "$eq" --frames "$frames" --movie "$work/teeth.sol" > "$work/teeth.txt" 2>/dev/null
-if xdigests "$work/teeth.txt" | cmp -s - "$work/n.txt.d"; then
+# step 500: player one runs at 127 instead (the first axis of the second group)
+awk 'BEGIN { n = 0 } /^\|/ { if (n++ == 500) { k = split($0, g, "|"); sub(/^ *-?[0-9]+,/, "  127,", g[3]); out = "|"; for (i = 2; i < k; i++) out = out g[i] "|"; print out; next } } { print }' "$movie" > "$work/teeth.movie"
+"$native" "$eq" --frames "$frames" --movie "$work/teeth.movie" > "$work/teeth.txt" 2>/dev/null
+if cmp -s "$work/teeth.movie" "$movie"; then
+	fail "teeth: the movie did not change"
+elif xdigests "$work/teeth.txt" | cmp -s - "$work/n.txt.d"; then
 	fail "teeth: a movie one step different digests the same"
 else
 	pass "teeth: a movie one step different digests differently"
@@ -357,35 +493,24 @@ if [ -n "$chimera_run" ]; then
 	echo "== engine ($chimera_run)"
 	"$here/build-package.sh" -m "$mb" -o "$work/package" > "$work/package.log" 2>&1 || {
 		tail -5 "$work/package.log"; fail "engine: the package did not build"; }
-	ed="$work/demo2-1"
-	python3 "$lmp2sol" --chimera "$ed/movie.sol" "$work/engine.txt"
-	n=$(grep -vc '^#' "$ed/movie.sol")
-	sj="$(python3 -c "import json, sys; s = json.load(open(sys.argv[1])); s['game'] = 'freedoom2'; print(json.dumps(s))" "$ed/settings.json")"
-	wbx_ready "$ed/m"
-	"$wbx" "$core" "$ed/m" --frames "$n" --movie "$ed/movie.sol" --dump-domain "Game State" "$work/engine-harness.gs" > /dev/null 2>&1
-	# the shape of an entry, as the engine records one: the movie's must be it
-	( cd "$work" && "$chimera_run" "$work/package/dsda.chimeraCore" "$fd2" "$work/engine.txt" --frames 1 --record "$work/engine-shape.txt" --settings "$sj" --firmware "freedoom2.wad=$fd2" ) > "$work/engine-shape.out" 2>&1 || true
-	shape() { head -1 "$1" | sed 's/-\{0,1\}[0-9][0-9]*/0/g; s/[A-Za-z]/X/g; s/ //g'; }
-	( cd "$work" && "$chimera_run" "$work/package/dsda.chimeraCore" "$fd2" "$work/engine.txt" --settings "$sj" --firmware "freedoom2.wad=$fd2" --dump "Game State=$work/engine.gs" ) > "$work/engine.out" 2>&1 || true
-	( cd "$work" && "$chimera_run" "$work/package/dsda.chimeraCore" "$fd2" "$work/engine.txt" --rerecord --settings "$sj" --firmware "freedoom2.wad=$fd2" --dump "Game State=$work/engine-r.gs" ) > "$work/engine-r.out" 2>&1 || true
-	if [ -f "$work/engine-shape.txt" ] && [ "$(shape "$work/engine-shape.txt" | tr '.' 'X')" = "$(shape "$work/engine.txt" | tr '.' 'X')" ] \
-		&& [ -f "$work/engine.gs" ] && cmp -s "$work/engine.gs" "$work/engine-harness.gs" && cmp -s "$work/engine.gs" "$work/engine-r.gs"; then
-		pass "engine: chimera-run plays Freedoom's DEMO1 ($n tics) as a Chimera movie to the harness's Game State, the same with --rerecord"
+	ed="$work/engine"
+	mkdir -p "$ed"
+	python3 "$importer" "$work/demo2-1/freedoom2-DEMO1.lmp" --version freedoom2-0.13.0 --no-pwads --package "$work/package/dsda.chimeraCore" -o "$ed/p.chimeraProject" 2> "$ed/import.err"
+	n=$(python3 "$tests/project-work.py" "$ed/p.chimeraProject" "$ed/m" "$wad" "$work/files")
+	"$wbx" "$core" "$ed/m" --frames "$n" --movie "$ed/m/movie.txt" --dump-domain "Game State" "$ed/harness.gs" > /dev/null 2>&1
+	( cd "$ed" && "$chimera_run" --project "$ed/p.chimeraProject" "$work/package/dsda.chimeraCore" --files "$work/files" --firmware "freedoom2.wad=$fd2" --dump "Game State=$ed/engine.gs" ) > "$ed/engine.out" 2>&1 || true
+	( cd "$ed" && "$chimera_run" --project "$ed/p.chimeraProject" "$work/package/dsda.chimeraCore" --files "$work/files" --firmware "freedoom2.wad=$fd2" --rerecord --dump "Game State=$ed/engine-r.gs" ) > "$ed/engine-r.out" 2>&1 || true
+	if [ -f "$ed/engine.gs" ] && cmp -s "$ed/engine.gs" "$ed/harness.gs" && cmp -s "$ed/engine.gs" "$ed/engine-r.gs"; then
+		pass "engine: chimera-run --project plays Freedoom's DEMO1 ($n tics), imported and pinned to the package, to the harness's Game State, the same with --rerecord"
 	else
-		fail "engine: chimera-run"; tail -3 "$work/engine.out"
+		fail "engine: chimera-run --project"; tail -3 "$ed/engine.out"
 	fi
 fi
 
-if [ -n "$iwads" ]; then
+if [ -n "$iwads" ] && [ -f "$work/iwads" ]; then
 	echo "== iwads ($iwads)"
-	for f in "$iwads"/*; do
-		[ -f "$f" ] || continue
-		s="$(sha1_of "$f")"
-		line="$(grep "^$s " "$work/pinned" | head -1 || true)"
-		[ -n "$line" ] || continue
-		set -- $line
-		version=$2; game=$3; id=$4
-		case $game in freedoom1|freedoom2) continue ;; esac
+	while read -r version game id; do
+		f="$work/files/$id"
 		lumps="$(python3 - "$f" <<'PY'
 import struct, sys
 d = open(sys.argv[1], 'rb').read()
@@ -393,32 +518,41 @@ _, n, o = struct.unpack('<4sii', d[:12])
 for i in range(n):
     p, s, name = struct.unpack('<ii8s', d[o + 16 * i:o + 16 * i + 16])
     name = name.rstrip(b'\0').decode('latin1')
-    if name.startswith('DEMO') and s > 13 and 104 <= d[p] <= 109:
+    if name.startswith('DEMO') and s > 7:
         print(name)
 PY
 )"
 		first=""
-		if [ -n "$lumps" ]; then
-			for lump in $lumps; do
-				demo_pair "$work/iwad-$version-$lump" "$f" "$id" "$version" "$game" "$lump" "iwads ($version)"
-				[ -n "$first" ] || first="$work/iwad-$version-$lump"
-			done
-			d="$first/m"; m="$first/movie.sol"
-		else
-			# a scripted walk: forward, a turn, fire
-			d="$work/iwad-$version"
-			mkwork "$d" "$f" "$id" "{\"version\": \"$version\"}"
-			m="$d.sol"
-			awk 'BEGIN { for (i = 0; i < 700; i++) printf "||  %d,   0, %4d,   0,%s..|\n", (i % 200 < 150 ? 50 : 0), (i % 200 >= 150 ? 8 : 0), (i % 7 == 0 ? "F" : ".") }' > "$m"
-		fi
-		wbx_ready "$d"
-		n=$(grep -vc '^#' "$m")
-		"$native" "$d" --frames "$n" --movie "$m" > "$d.n" 2>/dev/null
-		"$wbx" "$core" "$d" --frames "$n" --movie "$m" > "$d.w" 2>/dev/null
-		"$wbx" "$core" "$d" --frames "$n" --movie "$m" --session-at $((n * 3 / 5)) > "$d.s" 2>/dev/null
-		compare xdigests "iwads ($version)" "$d.n" "$d.w" "native = sandbox, $n steps$([ -n "$lumps" ] && echo " of $(basename "$first" | sed 's/.*-//')" || echo " of a scripted walk")"
-		compare digests "iwads ($version)" "$d.s" "$d.w" "session at step $((n * 3 / 5)) = straight"
-	done
+		for lump in $lumps; do
+			d="$work/iwad-$version-$lump"
+			mkdir -p "$d"
+			wad_lump "$f" "$lump" "$d/$version-$lump.lmp"
+			import_check "$d" "$d/$version-$lump.lmp" "iwads ($version)" --version "$version" --no-pwads
+			[ -n "$first" ] || first="$d"
+		done
+		# the Raven games' demos, recorded: the header's flags, longtics, the
+		# classes, co-op, dsda's format
+		case $game in
+			heretic)
+				fcase heretic "{\"version\": \"$version\", $st}" "" "" "$version" heretic
+				fcase heretic-flags "{\"version\": \"$version\", \"monstersRespawn\": true, \"skillLevel\": \"2\", \"initialEpisode\": 2, \"initialMap\": 4}" "" "" "$version" heretic
+				fcase heretic-coop "{\"version\": \"$version\", \"noMonsters\": true, \"player2Present\": true, \"player3Present\": true, $st}" "" "" "$version" heretic
+				fcase heretic-dsda "{\"version\": \"$version\", \"extendedCommands\": \"On, with casual features\"}" -dsdademo "" "$version" heretic ;;
+			hexen)
+				fcase hexen-cleric "{\"version\": \"$version\", \"player1Class\": \"Cleric\", $st}" "" "" "$version" hexen
+				fcase hexen-coop "{\"version\": \"$version\", \"player1Class\": \"Mage\", \"player2Present\": true, \"player4Present\": true, \"player4Class\": \"Cleric\", \"initialMap\": 13}" "" "" "$version" hexen
+				fcase hexen-dsda "{\"version\": \"$version\", \"extendedCommands\": \"On, with casual features\", \"player1Class\": \"Mage\"}" -dsdademo "" "$version" hexen ;;
+		esac
+		[ -n "$first" ] || continue
+		dd="$first/m"
+		[ -d "$dd" ] || continue
+		n=$(grep -c '^|' "$dd/movie.txt")
+		"$native" "$dd" --frames "$n" --movie "$dd/movie.txt" > "$first.n" 2>/dev/null
+		"$wbx" "$core" "$dd" --frames "$n" --movie "$dd/movie.txt" > "$first.w" 2>/dev/null
+		"$wbx" "$core" "$dd" --frames "$n" --movie "$dd/movie.txt" --session-at $((n * 3 / 5)) > "$first.s" 2>/dev/null
+		compare xdigests "iwads ($version)" "$first.n" "$first.w" "native = sandbox, $n steps of $(basename "$first" | sed 's/.*-//')"
+		compare digests "iwads ($version)" "$first.s" "$first.w" "session at step $((n * 3 / 5)) = straight"
+	done < "$work/iwads"
 fi
 
 echo

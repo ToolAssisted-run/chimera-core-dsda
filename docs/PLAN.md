@@ -59,6 +59,47 @@ the renderer's marks in the lines and sectors. So turbo no longer stops the engi
 picture's conversion only, and the machine is the same with and without it (the gate compares every domain).
 At 320x200 drawing is a small part of a step; at the large scale factors turbo saves less.
 
+## The demo importer (2026-10-01)
+
+`tools/lmp-import.py` reads every format dsda-doom plays and makes the demo a project: its settings, its IWAD
+as the firmware, its PWADs in the slot, its tics as the movie. What dsda's playback decides from a demo - the
+header (G_ReadDemoHeaderEx), dsda's own header and extended commands (dsda/demo.c), the footer's arguments
+(dsda/exdemo.c) - the core now takes as settings, so a project can say all of it:
+
+- **The axes take a tic command's whole range**: BizHawk's Run and Strafe Speed stop at 50 and Weapon Select at
+  7, which cannot name the chainsaw (key 8) or the super shotgun; hand-made and -turbo demos hold more. The
+  keys' and the mouse's contributions are still held to 50; an axis alone is the byte. The weapon axis is the
+  weapon's number, not a key: re-applying G_BuildTiccmd's chainsaw and super shotgun choice to a recorded
+  weapon depends on the recording port's preferences (`P_WeaponPreferred`), so it stays with the keys.
+- **Artifact**: BizHawk names the Raven games' artifact axis "Use Artifact", as it names the button that uses
+  the inventory's. One name for two inputs is two columns no frontend tells apart (TAStudio, the mnemonics,
+  the input log's reader key them by name); the import found it when Hexen's DEMO1 used an artifact the movie
+  also "pressed". The axis is "Artifact" here.
+- **Pause** is each player's, as the command's (BT_SPECIAL | BT_PAUSE: the player whose command it is loses
+  its buttons that tic); dsda ignores the other specials, and the importer drops them with their buttons.
+- **The option block** of a Boom-or-later demo (demo insurance, monster options, the comp flags) changes the
+  game from the first tic; PrBoom+'s recordings carry demo insurance, which dsda's own no longer do. It is a
+  string setting, the block as hex, applied by `G_ReadOptions` itself before the first `G_InitNew`, where
+  playback applies it (patch 0012) - one setting rather than forty, exact for every layout (Boom's, MBF's,
+  MBF21's with its comp count). The monster flags and the seed in it are the settings'.
+- **An old demo's options**: playback of a 1.2-1.9, TASDoom, Heretic or Hexen demo forces friction and pushers
+  off and the monster options to vanilla's, where a game outside demos has friction and pushers on - and the
+  friction check that bounces a missile off a wall on ice has no complevel guard. Hexen's DEMO1 desynced at tic
+  670 on a leaf; the core now forces the same when there is no option block (patch 0012). dsda's own
+  recordings of those formats run with friction on, so a dsda recording of Hexen on ice is not what its
+  playback plays; the demo's playback is what judges it.
+- **Hexen's map is a warp number**: the core's Initial Map is what `-warp` takes (BizHawk's), and Hexen's warp
+  goes through MAPINFO's `warptrans`; the importer reads the last MAPINFO (a PWAD's replaces the IWAD's) and
+  writes the warp number that reaches the demo's map.
+- **The RNG seed from complevel 7**: Boom 2.00's and 2.01's demos hold one; a game started at 7 or 8 without
+  `-rngseed` took a time-based one.
+- **Deathmatch without player one** crashed in vanilla's `G_CheckSpot` (patch 0013): such a demo would crash
+  dsda's playback too, but settings must not crash the core.
+- **What the gate proves**: every recordable format recorded by the engine, every other one crafted from those,
+  the IWADs' own demos, all imported and played = `-playdemo`, tic for tic; quickerDSDA's 39 demos and the
+  DSDA archive's (vanilla, PrBoom+, DSDA-Doom, Crispy, Chocolate, CNDoom, Woof, XDRE, TASDoom, MBF) the same,
+  locally.
+
 ## Decisions
 
 - **Upstream, not BizHawk's fork**: the latest engine, its fixes and its formats (MBF21, UMAPINFO), with
@@ -70,18 +111,18 @@ At 320x200 drawing is a small part of a step; at the large scale factors turbo s
   its mission from it - so a release's firmware id is that name, declared once per release with its own hash
   (Chimera's "an id declared many times").
 - **The compatibility level stays a setting**, as in BizHawk: a demo's own is what the engine would give it
-  (`tests/lmp2sol.py`, as `G_GetOriginalDoomCompatLevel`: 3 on a game with a fourth episode, 4 on Final Doom,
-  2 otherwise).
+  (the importer, as `G_GetOriginalDoomCompatLevel`: the footer's `-complevel`, else 3 on a game with a fourth
+  episode, 4 on Final Doom, 2 otherwise).
 - **The raw record domains** (Players, Things, Lines, Sectors) hold the engine's pointers: native and sandbox
   compare the Game State and the domains' sizes; sandbox against sandbox compares everything.
 
 ## Left
 
-- **The replay importer** (next): a Doom `.lmp` into a chimeraProject - the header's settings, the tics as
-  the controller's axes and buttons, the melt off (as BizHawk's importer has it), the complevel from the
-  version and the game. `tests/lmp2sol.py` is its vanilla half; Boom, MBF, PrBoom+ and MBF21 headers, longtics,
-  and Heretic's and Hexen's formats (BizHawk's `DoomLmpImport`, `HereticLmpImport`, `HexenLmpImport` read
-  them) are to come, and then the gate's demo leg reads Heretic's and Hexen's demos too.
+- **The importer in Chimera**: a menu entry that runs it (or its logic in C#) and opens the project.
+- **What the importer refuses**: a start from a key frame would need the frame (dsda's saved game in the
+  demo) as the movie's start; saves and loads mid-demo would need savegames inside the sandbox; Hexen's
+  players 5-8 and Boom's 5-32 the core's ports.
+- **Exporting a movie as a demo**: the other way, for DSDA's archive.
 - **More releases**: Doom 1.9 (registered and shareware), Doom II 1.666, Heretic 1.3, Hexen 1.0, the BFG and
   Unity editions, Chex Quest 3 - a line each in `gen-declaration.py` once a dump is at hand to pin.
 - **Chimera's Version selector** (`"versionSetting"`): the wizard's.

@@ -1,0 +1,14 @@
+--- a/prboom2/src/g_game.c
++++ b/prboom2/src/g_game.c
+@@ -1950,8 +1950,10 @@
+   if (!players[playernum].mo)
+     {
+       // first spawn of level, before corpses
++      // chimera: of the players in the game - one not in it has no body
++      // (deathmatch without player one dereferenced it)
+       for (i=0 ; i<playernum ; i++)
+-        if (players[i].mo->x == mthing->x && players[i].mo->y == mthing->y)
++        if (players[i].mo && players[i].mo->x == mthing->x && players[i].mo->y == mthing->y)
+           return false;
+       return true;
+     }

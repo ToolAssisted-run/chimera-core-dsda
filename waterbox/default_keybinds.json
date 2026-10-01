@@ -19,6 +19,7 @@
       "P1 Weapon Select 5": "Number5",
       "P1 Weapon Select 6": "Number6",
       "P1 Weapon Select 7": "Number7",
+      "P1 Jump": "Slash",
       "Change Gamma": "F11",
       "Automap Toggle": "Tab",
       "Automap +": "KeypadAdd",
@@ -31,7 +32,8 @@
       "Automap Left": "Left",
       "Automap Grid": "G",
       "Automap Mark": "M",
-      "Automap Clear Marks": "C"
+      "Automap Clear Marks": "C",
+      "P1 Pause": "Pause"
     },
     "Heretic Controller": {
       "P1 Fire": "WMouse L",
@@ -58,6 +60,7 @@
       "P1 Fly Up": "PageUp",
       "P1 Fly Down": "Insert",
       "P1 Fly Center": "Home",
+      "P1 Jump": "Slash",
       "Change Gamma": "F11",
       "Automap Toggle": "Tab",
       "Automap +": "KeypadAdd",
@@ -70,7 +73,8 @@
       "Automap Left": "Left",
       "Automap Grid": "G",
       "Automap Mark": "M",
-      "Automap Clear Marks": "C"
+      "Automap Clear Marks": "C",
+      "P1 Pause": "Pause"
     },
     "Hexen Controller": {
       "P1 Fire": "WMouse L",
@@ -107,7 +111,8 @@
       "Automap Left": "Left",
       "Automap Grid": "G",
       "Automap Mark": "M",
-      "Automap Clear Marks": "C"
+      "Automap Clear Marks": "C",
+      "P1 Pause": "Pause"
     }
   },
   "AllTrollersAutoFire": {

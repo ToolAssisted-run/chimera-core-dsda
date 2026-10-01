@@ -117,7 +117,7 @@ SETTINGS = [
     S("preventGameEnd", "Prevent Game End", "bool", False,
       "Game end triggers won't have an effect. This is useful for debugging / optimizing / botting purposes. Not available in vanilla."),
     S("turbo", "Turbo", "int", -1, "Modifies the player running / strafing speed [0-255]. '-1' means Disabled.", min=-1, max=255),
-    S("rngSeed", "Initial RNG Seed", "int", 1993, "Only for compatibility level 9 and above. Default value is 1993.",
+    S("rngSeed", "Initial RNG Seed", "int", 1993, "Only for compatibility level 7 (Boom) and above. Default value is 1993.",
       min=0, max=2147483647, when=DOOM_GAMES),
 ] + [S("player%dPresent" % p, "Player %d Present" % p, "bool", p == 1, "Specifies if player %d is present" % p) for p in range(1, 5)] + [
     S("player%dClass" % p, "[Hexen] Player %d Class" % p, "enum", "Fighter", "The Hexen class to use for player %d." % p,
@@ -153,6 +153,29 @@ SETTINGS = [
     S("fullVision", "Full Vision", "bool", False, "Disables all darkness. Available in vanilla via the IDBEHOLDL cheat code."),
     S("displayPlayer", "Player Point of View", "int", 1,
       "Which of the players' point of view to use during rendering [1 - 4]; a player not present falls to the first one present.", min=1, max=4),
+] + [
+    # what a demo can dictate beyond BizHawk's settings (tools/lmp-import.py
+    # sets them): its header's option block and DSDA format, its footer's
+    # arguments
+    S("soloNet", "Solo Net", "bool", False,
+      "Plays a single player as a netgame (dsda's -solo-net), as a demo's footer may say. More than one player is a netgame anyway."),
+    S("demoOptions", "Boom/MBF Options", "string", "",
+      "The game options a Boom-or-later demo's header holds, as hex: Boom's, MBF's and PrBoom's 64 bytes, or MBF21's 21 and its comp flags. Monster memory, friction, pushers, bobbing, demo insurance, infighting, helper dogs and their distance, the monsters' behaviour, the comp flags. Empty: the complevel's defaults and a PWAD's OPTIONS lump, as dsda records. The monster flags and the seed in it are the settings'.",
+      when=DOOM_GAMES),
+    S("extendedCommands", "Extended Commands", "enum", "Off",
+      "dsda's extended tic commands, which its DSDA demo format holds: jumping and free look, and with the casual features god mode and no clipping. Off for every other demo format.",
+      options=["Off", "On", "On, with casual features"]),
+    S("emulatePrBoom", "Emulate PrBoom+ Version", "string", "",
+      "Plays as an older PrBoom+ did (dsda's -emulate, a version such as 2.5.0.8), as a demo's footer may ask. Empty: as dsda plays."),
+    S("spechitAddress", "Spechit Overrun Base Address", "int", 0,
+      "The memory address the spechit overflow's emulation assumes (dsda's -spechit), as a demo's footer may say. 0: doom2.exe's (0x01C09C98).",
+      min=0, max=2147483647, when=DOOM_GAMES),
+    S("overrunSpechit", "Emulate Spechit Overflow", "bool", True, "Emulates vanilla's spechit overflow (dsda's overrun_spechit_emulate, on by default).", when=DOOM_GAMES),
+    S("overrunReject", "Emulate Reject Overflow", "bool", True, "Emulates vanilla's REJECT overflow (overrun_reject_emulate, on by default).", when=DOOM_GAMES),
+    S("overrunIntercept", "Emulate Intercepts Overflow", "bool", True, "Emulates vanilla's intercepts overflow (overrun_intercept_emulate, on by default).", when=DOOM_GAMES),
+    S("overrunPlayeringame", "Emulate Playeringame Overflow", "bool", True, "Emulates vanilla's playeringame overflow (overrun_playeringame_emulate, on by default).", when=DOOM_GAMES),
+    S("overrunDonut", "Emulate Donut Overflow", "bool", False, "Emulates vanilla's donut overflow (overrun_donut_emulate, off by default).", when=DOOM_GAMES),
+    S("overrunMissedBackside", "Emulate Missed Backside Overflow", "bool", False, "Emulates vanilla's missed backside overflow (overrun_missedbackside_emulate, off by default).", when=DOOM_GAMES),
 ]
 
 
@@ -236,7 +259,7 @@ BINDS = {"P1 Fire": "WMouse L", "P1 Use": "Space", "P1 Forward": "W", "P1 Backwa
          "P1 Fly Down": "Insert", "P1 Fly Center": "Home", "P1 Jump": "Slash", "Change Gamma": "F11",
          "Automap Toggle": "Tab", "Automap +": "KeypadAdd", "Automap -": "KeypadSubtract", "Automap Full/Zoom": "Keypad0",
          "Automap Follow": "F", "Automap Up": "Up", "Automap Down": "Down", "Automap Right": "Right", "Automap Left": "Left",
-         "Automap Grid": "G", "Automap Mark": "M", "Automap Clear Marks": "C"}
+         "Automap Grid": "G", "Automap Mark": "M", "Automap Clear Marks": "C", "P1 Pause": "Pause"}
 ANALOG = {"P1 Mouse Run": {"Value": "RMouse Y", "Mult": 1.0, "Deadzone": 0.0},
           "P1 Mouse Turn": {"Value": "RMouse X", "Mult": 1.0, "Deadzone": 0.0}}
 

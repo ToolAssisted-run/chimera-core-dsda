@@ -14,6 +14,7 @@
  *
  * The engine's fatal errors (I_Error) and its exits halt the machine: it keeps
  * stepping, black and silent, and says why (chimera_exit). */
+#include <ctype.h>
 #include <limits.h>
 #include <setjmp.h>
 #include <stddef.h>
@@ -48,6 +49,7 @@
 #include "m_menu.h"
 #include "heretic/def.h"
 #include "dsda/configuration.h"
+#include "dsda/excmd.h"
 #include "dsda/messenger.h"
 #include "dsda/palette.h"
 
@@ -74,6 +76,15 @@ struct dsda_settings
 	int prevent_level_exit, prevent_game_end, turbo;
 	long rng_seed;
 	int player_present[4], player_class[4];
+	/* what a demo can dictate beyond BizHawk's settings: its Boom/MBF/MBF21
+	 * option block, single-player netgame, dsda's extended commands, and its
+	 * footer's PrBoom+ emulation, spechit base and overflow emulation */
+	uint8_t demo_options[64];
+	int demo_options_len;       /* -1: not hex */
+	int solo_net, extended_commands;
+	char emulate[32];
+	long spechit_address;
+	int overrun[6];             /* spechit, reject, intercept, playeringame, donut, missedbackside */
 	/* BizHawk's (non-sync) settings: part of the machine here, as Chimera has
 	 * no cosmetic settings */
 	int sfx_volume, music_volume, gamma, show_messages, report_secrets, hud_mode, exhud;
@@ -102,6 +113,30 @@ static const char *const k_classes[] = { "Fighter", "Cleric", "Mage" };
 static const char *const k_hud[] = { "Vanilla", "DSDA", "None" };
 static const char *const k_overlay[] = { "Disabled", "Enabled", "Dark" };
 static const char *const k_details[] = { "Normal", "Linedefs", "Linedefs and things" };
+static const char *const k_excmd[] = { "Off", "On", "On, with casual features" };
+/* dsda's overflow emulation switches, in g_overflow.h's order, with its
+ * defaults */
+static const char *const k_overrun_settings[6] = { "overrunSpechit", "overrunReject", "overrunIntercept",
+	"overrunPlayeringame", "overrunDonut", "overrunMissedBackside" };
+static const char *const k_overrun_config[6] = { "overrun_spechit_emulate", "overrun_reject_emulate",
+	"overrun_intercept_emulate", "overrun_playeringame_emulate", "overrun_donut_emulate",
+	"overrun_missedbackside_emulate" };
+static const int k_overrun_default[6] = { 1, 1, 1, 1, 0, 0 };
+
+/* hex digits to bytes: the count, or -1 when it is not an even run of them */
+static int parse_hex(const char *s, uint8_t *out, int cap)
+{
+	int n = 0;
+	while (s[0] && s[1])
+	{
+		unsigned v;
+		if (n == cap || sscanf(s, "%2x", &v) != 1 || !isxdigit((unsigned char)s[0]) || !isxdigit((unsigned char)s[1]))
+			return -1;
+		out[n++] = (uint8_t)v;
+		s += 2;
+	}
+	return s[0] ? -1 : n;
+}
 
 static void read_settings(struct dsda_settings *s)
 {
@@ -157,6 +192,16 @@ static void read_settings(struct dsda_settings *s)
 	s->map_trail_size = (int)wbx_setting_long("mapTrailSize", 105);
 	s->full_vision = wbx_setting_bool("fullVision", 0);
 	s->display_player = (int)wbx_setting_long("displayPlayer", 1);
+	{
+		char hex[300] = "";
+		wbx_setting_str("demoOptions", hex, (int)sizeof hex);
+		s->demo_options_len = parse_hex(hex, s->demo_options, (int)sizeof s->demo_options);
+	}
+	s->solo_net = wbx_setting_bool("soloNet", 0);
+	s->extended_commands = enum_index(STR("extendedCommands", "Off"), k_excmd, 3, 0);
+	snprintf(s->emulate, sizeof s->emulate, "%.31s", STR("emulatePrBoom", ""));
+	s->spechit_address = wbx_setting_long("spechitAddress", 0);
+	for (int i = 0; i < 6; i++) s->overrun[i] = wbx_setting_bool(k_overrun_settings[i], k_overrun_default[i]);
 #undef STR
 }
 
@@ -251,7 +296,9 @@ void dsdadrv_set_axis(int index, int32_t value)
 int dsdadrv_button_active(int index)
 {
 	if (!g.ctl || index < 0 || index >= g.ctl->nbuttons) return 0;
-	const int port = g.ctl->buttons[index].port;
+	const int port = g.ctl->buttons[index].port, control = g.ctl->buttons[index].control;
+	if (control == C_EX_JUMP && !g.s.extended_commands) return 0;
+	if ((control == C_GOD || control == C_NOCLIP) && g.s.extended_commands < 2) return 0;
 	return port == 0 || g.s.player_present[port - 1];
 }
 
@@ -260,6 +307,7 @@ int dsdadrv_axis_active(int index)
 	if (!g.ctl || index < 0 || index >= g.ctl->naxes) return 0;
 	const struct dsda_input *in = &g.ctl->axes[index];
 	if (in->control == C_TURN_FRAC && !g.s.longtics) return 0;
+	if (in->control == C_FREE_LOOK && !g.s.extended_commands) return 0;
 	return in->port == 0 || g.s.player_present[in->port - 1];
 }
 
@@ -321,6 +369,8 @@ static void assign_config(void (*add)(const char *))
 	ASSIGN("hud_displayed=%d", s->hud_mode == 2 ? 0 : 1);
 	ASSIGN("map_trail=%d", s->map_trail);
 	ASSIGN("map_trail_size=%d", s->map_trail_size);
+	/* the overflows vanilla had, emulated or not (a demo's footer may say) */
+	for (int i = 0; i < 6; i++) ASSIGN("%s=%d", k_overrun_config[i], s->overrun[i]);
 	if (s->full_vision)
 	{
 		ASSIGN("palette_ondamage=0");
@@ -344,6 +394,14 @@ static void apply_render_state(void)
 				players[i].powers[pw_infrared] = -1;
 			}
 }
+
+#ifdef DSDA_GATE_HOOKS
+#include "dsda/demo.h"
+static void gate_finish_recording(void)
+{
+	if (demorecording) dsda_EndDemoRecording();
+}
+#endif
 
 static char *g_argv[96];
 static int g_argc;
@@ -409,6 +467,28 @@ int dsdadrv_init(char *err, int errsize)
 	{
 		snprintf(err, (size_t)errsize, "the setting scaleFactor is %d; it goes from 1 to 12", g.s.scale_factor);
 		return 0;
+	}
+	/* a demo's option block is its complevel's: Boom, MBF and PrBoom's 64 bytes,
+	 * MBF21's 21 and its comp flags (their count the 21st byte) */
+	if (g.s.demo_options_len < 0)
+	{
+		snprintf(err, (size_t)errsize, "the setting demoOptions is not hex (two digits a byte)");
+		return 0;
+	}
+	if (g.s.demo_options_len > 0)
+	{
+		const int n = g.s.demo_options_len;
+		if (g.s.complevel < 7)
+		{
+			snprintf(err, (size_t)errsize, "the setting demoOptions is a Boom-or-later demo's option block; complevel %d has none", g.s.complevel);
+			return 0;
+		}
+		if (g.s.complevel == 21 ? (n < 21 || g.s.demo_options[20] > 25 || n != 21 + g.s.demo_options[20]) : n != 64)
+		{
+			snprintf(err, (size_t)errsize, "the setting demoOptions is %d bytes; complevel %d's option block is %s", n, g.s.complevel,
+				g.s.complevel == 21 ? "21 and its comp flags (at most 46)" : "64");
+			return 0;
+		}
 	}
 
 	/* the resolution (DSDA.cs) */
@@ -491,14 +571,19 @@ int dsdadrv_init(char *err, int errsize)
 	if (g.s.multiplayer_mode == 1) arg("-deathmatch");
 	if (g.s.multiplayer_mode == 2) arg("-altdeath");
 	if (g.s.turbo > 0) { arg("-turbo"); argi(g.s.turbo); }
-	if (present_count() > 1) arg("-solo-net");
-	if (g.s.complevel >= 9) { arg("-rngseed"); argi((int)g.s.rng_seed); }
+	if (present_count() > 1 || g.s.solo_net) arg("-solo-net");
+	/* the seed a Boom-or-later game starts its generator with (Boom 2.00 on:
+	 * a demo's options hold it) */
+	if (g.s.complevel >= 7) { arg("-rngseed"); argi((int)g.s.rng_seed); }
+	if (g.s.spechit_address) { arg("-spechit"); argi((int)g.s.spechit_address); }
+	if (g.s.emulate[0]) { arg("-emulate"); arg(g.s.emulate); }
 	arg("-assign");
 	assign_config(arg);
 #ifdef DSDA_GATE_HOOKS
-	/* the native reference only (native.mk): the gate's demo leg has the
-	 * engine play a demo itself (-playdemo) - more arguments, from the work
-	 * folder's gate-args */
+	/* the native reference only (native.mk): the gate's demo legs have the
+	 * engine play a demo itself (-playdemo) or record one (-record) - more
+	 * arguments, from the work folder's gate-args; a recording is written when
+	 * the harness exits */
 	{
 		FILE *ga = fopen("gate-args", "r");
 		char w[256];
@@ -506,6 +591,7 @@ int dsdadrv_init(char *err, int errsize)
 		{
 			while (fscanf(ga, "%255s", w) == 1) arg(w);
 			fclose(ga);
+			atexit(gate_finish_recording);
 		}
 	}
 #endif
@@ -519,6 +605,21 @@ int dsdadrv_init(char *err, int errsize)
 		PlayerClass[i] = g.version->format == FORMAT_HEXEN ? (pclass_t)g.s.player_class[i] : PCLASS_NULL;
 	}
 	displayplayer = consoleplayer = g.s.display_player - 1;
+
+	/* the option block, as the demo's header holds it, with the settings' own
+	 * fields in place (the monster flags and the seed); the extended commands */
+	if (g.s.demo_options_len > 0)
+	{
+		uint8_t *o = g.s.demo_options;
+		const int at = g.s.complevel == 21 ? 3 : 6; /* respawn, fast, nomonsters, then (MBF: one byte on) the seed */
+		const int seed_at = g.s.complevel == 21 ? 6 : 10;
+		o[at] = (uint8_t)g.s.monsters_respawn;
+		o[at + 1] = (uint8_t)g.s.fast_monsters;
+		o[at + 2] = (uint8_t)g.s.no_monsters;
+		for (int i = 0; i < 4; i++) o[seed_at + i] = (uint8_t)((unsigned long)g.s.rng_seed >> (24 - 8 * i));
+		frontend_demo_options = o;
+	}
+	frontend_excmd = g.s.extended_commands;
 
 	frontend_steps_wipe = true;
 	g.wipe_done = 1;
@@ -610,20 +711,26 @@ static void player_input(int i)
 	turning = control_value(C_TURN_SPEED, port) << 8;
 	if (g.s.longtics) turning += control_value(C_TURN_FRAC, port);
 
-	/* the weapon buttons override the axis, a higher one a lower */
+	/* the weapon buttons override the axis, a higher one a lower; a button is
+	 * a key (the chainsaw and the super shotgun are found below, as
+	 * G_BuildTiccmd finds them), the axis the weapon itself */
 	static const int weapon_controls[7] = { C_WEAPON_1, C_WEAPON_2, C_WEAPON_3, C_WEAPON_4, C_WEAPON_5, C_WEAPON_6, C_WEAPON_7 };
+	int weapon_key = 0;
 	for (int unit = 1; unit <= 7; unit++)
-		if (PRESSED(weapon_controls[unit - 1], port)) weapon = unit;
+		if (PRESSED(weapon_controls[unit - 1], port)) weapon = unit, weapon_key = 1;
 
-	if (PRESSED(C_FORWARD, port)) run = k_run_speeds[speed];
-	if (PRESSED(C_BACKWARD, port)) run = -k_run_speeds[speed];
+	/* what the keys and the mouse add is held to the running speed, as
+	 * BizHawk's core holds it; the axes alone are the command's own bytes */
+	int run_keyed = 0, strafe_keyed = 0;
+	if (PRESSED(C_FORWARD, port)) run = k_run_speeds[speed], run_keyed = 1;
+	if (PRESSED(C_BACKWARD, port)) run = -k_run_speeds[speed], run_keyed = 1;
 	/* turning with strafe held is ADDED to these: strafe50 */
-	if (PRESSED(C_STRAFE_RIGHT, port)) strafing = k_strafe_speeds[speed];
-	if (PRESSED(C_STRAFE_LEFT, port)) strafing = -k_strafe_speeds[speed];
+	if (PRESSED(C_STRAFE_RIGHT, port)) strafing = k_strafe_speeds[speed], strafe_keyed = 1;
+	if (PRESSED(C_STRAFE_LEFT, port)) strafing = -k_strafe_speeds[speed], strafe_keyed = 1;
 	if (strafe)
 	{
-		if (PRESSED(C_TURN_RIGHT, port)) strafing += k_strafe_speeds[speed];
-		if (PRESSED(C_TURN_LEFT, port)) strafing -= k_strafe_speeds[speed];
+		if (PRESSED(C_TURN_RIGHT, port)) strafing += k_strafe_speeds[speed], strafe_keyed = 1;
+		if (PRESSED(C_TURN_LEFT, port)) strafing -= k_strafe_speeds[speed], strafe_keyed = 1;
 	}
 	else
 	{
@@ -632,15 +739,18 @@ static void player_input(int i)
 	}
 
 	/* the mouse: running (the divider the core's), turning */
-	run -= (int)(control_value(C_MOUSE_RUN, port) * g.s.mouse_run_sensitivity / 8.0);
-	run = clampi(run, -k_run_speeds[1], k_run_speeds[1]);
+	{
+		const int mouse_run = control_value(C_MOUSE_RUN, port);
+		if (mouse_run) run -= (int)(mouse_run * g.s.mouse_run_sensitivity / 8.0), run_keyed = 1;
+	}
+	if (run_keyed) run = clampi(run, -k_run_speeds[1], k_run_speeds[1]);
 	{
 		const int mouse = control_value(C_MOUSE_TURN, port) * g.s.mouse_turn_sensitivity;
-		if (strafe) strafing += mouse / 5;
+		if (strafe && mouse) strafing += mouse / 5, strafe_keyed = 1;
 		else turning -= mouse;
 	}
 	/* strafe speed is limited to the max run speed, NOT the max strafe speed */
-	strafing = clampi(strafing, -k_run_speeds[1], k_run_speeds[1]);
+	if (strafe_keyed) strafing = clampi(strafing, -k_run_speeds[1], k_run_speeds[1]);
 
 	/* shorttics: one byte in movies, two in the core */
 	if (!g.s.longtics)
@@ -729,7 +839,7 @@ static void player_input(int i)
 		if (dest->buttons & BT_CHANGE)
 		{
 			int newweapon = weapon - 1;
-			if (!demo_compatibility)
+			if (!demo_compatibility && weapon_key)
 			{
 				if (newweapon == wp_fist && player->weaponowned[wp_chainsaw] && player->readyweapon != wp_chainsaw
 					&& (player->readyweapon == wp_fist || !player->powers[pw_strength] || P_WeaponPreferred(wp_chainsaw, wp_fist)))
@@ -740,6 +850,21 @@ static void player_input(int i)
 					newweapon = wp_supershotgun;
 			}
 			dest->buttons |= newweapon << BT_WEAPONSHIFT;
+		}
+		/* the command's pause replaces its buttons, as G_BuildTiccmd's sendpause */
+		if (PRESSED(C_PAUSE, port))
+			dest->buttons = BT_SPECIAL | BT_PAUSE;
+		/* dsda's extended commands */
+		if (g.s.extended_commands)
+		{
+			const int look = control_value(C_FREE_LOOK, port);
+			if (PRESSED(C_EX_JUMP, port)) dest->ex.actions |= XC_JUMP;
+			if (look) dest->ex.actions |= XC_LOOK, dest->ex.look = (short)look;
+			if (g.s.extended_commands > 1)
+			{
+				if (PRESSED(C_GOD, port)) dest->ex.actions |= XC_GOD;
+				if (PRESSED(C_NOCLIP, port)) dest->ex.actions |= XC_NOCLIP;
+			}
 		}
 		if (dest->forwardmove || dest->sidemove || dest->lookfly || dest->arti)
 			finale_inputs();

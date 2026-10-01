@@ -30,14 +30,19 @@ static void build_controller(int format, struct dsda_controller *c)
 	(snprintf(name, sizeof name, "P%d " label, port), add_input(c->buttons, &c->nbuttons, name, control, port, 0, 1, 0))
 	for (int port = 1; port <= 4; port++)
 	{
-		AXIS("Run Speed", C_RUN_SPEED, -50, 50, 0);
-		AXIS("Strafe Speed", C_STRAFE_SPEED, -50, 50, 0);
+		/* a tic command's byte: BizHawk's -50..50 is what the keys make, a
+		 * demo may hold more (-turbo, hand-made tics) */
+		AXIS("Run Speed", C_RUN_SPEED, -128, 127, 0);
+		AXIS("Strafe Speed", C_STRAFE_SPEED, -128, 127, 0);
 		AXIS("Turn Speed", C_TURN_SPEED, -128, 127, 0);
 		/* editing a short in TAStudio would be a nightmare, so BizHawk splits
 		 * it: the high byte is shorttics' whole angle units, this the
 		 * fraction longtics has */
 		AXIS("Turn Speed Frac.", C_TURN_FRAC, -255, 255, 0);
-		AXIS("Weapon Select", C_WEAPON_SELECT, 0, 7, 0);
+		/* the weapon's number + 1, as the command holds it (BT_CHANGE and four
+		 * bits): BizHawk's 0..7 cannot name the chainsaw (8) or the super
+		 * shotgun (9) */
+		AXIS("Weapon Select", C_WEAPON_SELECT, 0, 16, 0);
 		AXIS("Mouse Run", C_MOUSE_RUN, -128, 127, 0);
 		/* the largest raw mouse delta, 180, with longtics */
 		AXIS("Mouse Turn", C_MOUSE_TURN, -180, 180, 0);
@@ -45,8 +50,15 @@ static void build_controller(int format, struct dsda_controller *c)
 		{
 			AXIS("Look", C_LOOK, -7, 8, 0);
 			AXIS("Fly", C_FLY, -7, 8, 0);
-			AXIS("Use Artifact", C_USE_ARTIFACT_AXIS, 0, 10, 0);
+			/* the artifact to use, by its number - any (the command's six bits:
+			 * Hexen has 32). BizHawk calls it "Use Artifact", as it calls the
+			 * button that uses the inventory's; a name the two share is a
+			 * column the frontend cannot tell apart */
+			AXIS("Artifact", C_USE_ARTIFACT_AXIS, 0, 63, 0);
 		}
+		/* dsda's extended command: the free look's change, a short (-32768
+		 * recentres) */
+		AXIS("Free Look", C_FREE_LOOK, -32768, 32767, 0);
 		BUTTON("Fire", C_FIRE);
 		BUTTON("Use", C_USE);
 		BUTTON("Forward", C_FORWARD);
@@ -84,6 +96,12 @@ static void build_controller(int format, struct dsda_controller *c)
 			BUTTON("Fly Down", C_FLY_DOWN);
 			BUTTON("Fly Center", C_FLY_CENTER);
 		}
+		/* the command's pause (BT_SPECIAL | BT_PAUSE), a toggle */
+		BUTTON("Pause", C_PAUSE);
+		/* dsda's extended commands: Hexen jumps with its artifact flag */
+		if (format != FORMAT_HEXEN) BUTTON("Jump", C_EX_JUMP);
+		BUTTON("God", C_GOD);
+		BUTTON("No Clip", C_NOCLIP);
 	}
 #undef AXIS
 #undef BUTTON
