@@ -111,17 +111,18 @@ say all of it:
 
 The importer is C++ now, `waterbox/lmp-import.cpp`, and part of the core: compiled into core.wbx and the native
 reference like the driver, it answers the export `ImportMovie` - a frontend loads the core, mounts the demo as
-`movie` and the WADs it reads by their names, gives the options as settings, and calls it instead of `Init`;
-the parts of the project come back as JSON. Chimera keeps no core-specific code (its movie importers were
-removed with the rest), so a core that imports its own demos is how an importer can reach a person; the
-frontend's side - a menu that offers a package's importer for a file - is Chimera's to add. What the importer
-needs to read it asks for by name (the IWAD's hash for the release, Hexen's MAPINFO for the warp number, the
-PWADs' hashes for the manifest), so the same code runs in the sandbox and in `tools/lmp-import.cpp`, the
-command line that finds the files in folders and writes the `.chimeraProject`. The settings' options come from
-the declaration (`dsda-options.h`, generated with it) and the active inputs from the driver's own rule
-(`dsda_input_active`), so the importer cannot drift from the core. Before the Python went, both importers
-imported every demo at hand - the gate's, the IWADs', quickerDSDA's, the DSDA archive's: 449 - to the same
-projects and the same refusals.
+`movie` and the WADs it reads by their names, gives the options as settings, and calls it instead of `Init`; the
+parts of the project come back as JSON. The dialog is the declaration's (`movieImport`, which Chimera draws as it
+draws the settings: the demo, the files and the option each sets, the options), so no Doom lives in Chimera's
+code. Chimera keeps no core-specific code (its movie importers were removed with the rest), so a core that imports
+its own demos is how an importer can reach a person; the frontend's side - a menu that offers a package's importer
+for a file - is Chimera's to add. What the importer needs to read it asks for by name (the IWAD's hash for the
+release, Hexen's MAPINFO for the warp number, the PWADs' hashes for the manifest), so the same code runs in the
+sandbox and in `tools/lmp-import.cpp`, the command line that finds the files in folders and writes the
+`.chimeraProject`. The settings' options come from the declaration (`dsda-options.h`, generated with it) and the
+active inputs from the driver's own rule (`dsda_input_active`), so the importer cannot drift from the core. Before
+the Python went, both importers imported every demo at hand - the gate's, the IWADs', quickerDSDA's, the DSDA
+archive's: 449 - to the same projects and the same refusals.
 
 ## Decisions
 

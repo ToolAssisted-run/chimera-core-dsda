@@ -156,7 +156,7 @@ std::string guess_versionless_family(const uint8_t *data, size_t size, size_t st
 		if (q < size && data[q] == DEMOMARKER) fits.push_back(c.family);
 	}
 	if (fits.size() == 1) return fits[0];
-	refuse("its header has no version byte, and it could be %s: say the game (--version or --iwad)",
+	refuse("its header has no version byte, and it could be %s: say the game (its IWAD, or its release)",
 		fits.empty() ? "none of Doom 1.2, Heretic or Hexen" : join(fits, " or ").c_str());
 }
 
@@ -1043,7 +1043,7 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 	}
 	Demo demo = parse_demo(data, size, family_hint, o->longtics);
 	if (o->longtics && demo.family == "doom")
-		refuse("--longtics is for Heretic and Hexen demos; a Doom demo's format says its turning");
+		refuse("longtics are for Heretic and Hexen demos; a Doom demo's format says its turning");
 	const Footer f = footer_values(demo.footer_args, demo.footer_text);
 
 	/* the IWAD's release: the version given, the IWAD's hash, or the footer's -iwad */
@@ -1100,7 +1100,7 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 			{
 				std::vector<std::string> ids;
 				for (auto v : candidates) ids.push_back(v->id);
-				refuse("the demo does not say which IWAD it is for%s: give --version (%s) or --iwad",
+				refuse("the demo does not say which IWAD it is for%s: give its IWAD (or its release: %s)",
 					f.iwad.empty() ? "" : (" beyond its name, " + f.iwad + ",").c_str(), ids.empty() ? "none fits" : join(ids, ", ").c_str());
 			}
 			version = candidates[0];
@@ -1145,7 +1145,7 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 		fast = has_flag("-fast");
 		nomonsters = has_flag("-nomonsters") || (demo.raven_bits & DEMOHEADER_NOMONSTERS);
 		if (family == "doom" && !has_flag("-respawn") && !has_flag("-fast") && !has_flag("-nomonsters"))
-			r.notes.push_back("a 1.2 demo does not hold its monster flags: none assumed (--respawn, --fast, --nomonsters)");
+			r.notes.push_back("a 1.2 demo does not hold its monster flags: none assumed (respawn, fast, no monsters: say them)");
 	}
 	set(s, "monstersRespawn", Value::of(respawn));
 	set(s, "fastMonsters", Value::of(fast));
@@ -1214,7 +1214,7 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 		{
 			std::vector<std::string> all = f.files;
 			all.insert(all.end(), f.deh.begin(), f.deh.end());
-			r.notes.push_back("its footer names " + join(all, ", ") + "; none taken (--no-pwads)");
+			r.notes.push_back("its footer names " + join(all, ", ") + "; none taken (no PWADs)");
 		}
 	}
 	else if (o->pwads)
@@ -1258,7 +1258,7 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 		const unsigned char *b = iwad_name.empty() ? nullptr : rd.read(iwad_name, &n);
 		if (!b) b = rd.read(version->iwad, &n);
 		if (!b || sha1_hex(b, n) != version->sha1)
-			refuse("a Hexen demo's map is reached by its warp number, which the IWAD's MAPINFO says: give --iwad or --wads");
+			refuse("a Hexen demo's map is reached by its warp number, which the IWAD's MAPINFO says: give the IWAD");
 		std::vector<std::pair<const unsigned char *, size_t>> all;
 		all.emplace_back(b, n);
 		all.insert(all.end(), wad_bytes.begin(), wad_bytes.end());

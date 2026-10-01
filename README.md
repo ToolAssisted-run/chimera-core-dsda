@@ -102,18 +102,20 @@ build/native/lmp-import demo.lmp --iwad DOOM2.WAD [--wads <folder>]... [-o demo.
 build/native/lmp-import demo.lmp --version freedoom2-0.13.0 --pwad map.wad --info
 ```
 
-The importer is the core's (`waterbox/lmp-import.cpp`, C++): compiled into core.wbx, where a frontend calls it
-- the export `ImportMovie`, on a loaded core instead of `Init`, the demo mounted as `movie` and the WADs it
-reads by their names, its options as settings (`importVersion`, `importIwad`, `importPwads`, `importNoPwads`,
+The importer is the core's (`waterbox/lmp-import.cpp`, C++): compiled into core.wbx, where a frontend calls it -
+the export `ImportMovie`, on a loaded core instead of `Init`, the demo mounted as `movie` and the WADs it reads by
+their names, its options as settings (`importVersion`, `importIwad`, `importPwads`, `importNoPwads`,
 `importLongtics`, `importRespawn`, `importFast`, `importNomonsters`), the project's parts returned as JSON
-(`settings`, `firmware`, `files`, `input`, `frames`, what the demo is, notes) or `{"error": ...}` - and into
-the command-line tool (`tools/lmp-import.cpp`, built by `native.mk` as `build/native/lmp-import`), which finds
-the files in folders, pins the package and writes the whole `.chimeraProject`. The project it writes is the
-demo: open it in Chimera (or `chimera-run --project`) with the IWAD and the PWADs at hand. The game and its
-release come from `--iwad` (the file, by its hash), `--version`, or the demo's own footer (its `-iwad`, found in
-`--wads`); the PWADs and patches from the footer's `-file` and `-deh` (found by name in `--wads`) or `--pwad`, in
-order; `--no-pwads` takes none (an IWAD's own demos). `--package` pins the project to a package (its version and
-hash); the settings' names and options are the core's own, compiled in from the declaration.
+(`settings`, `firmware`, `files`, `input`, `frames`, what the demo is, notes) or `{"error": ...}`; the
+declaration's `movieImport` is the dialog Chimera draws for it (the demo, the IWAD as the firmware, the PWADs and
+patches into the slot, the options) - and into the command-line tool (`tools/lmp-import.cpp`, built by `native.mk`
+as `build/native/lmp-import`), which finds the files in folders, pins the package and writes the whole
+`.chimeraProject`. The project it writes is the demo: open it in Chimera (or `chimera-run --project`) with the
+IWAD and the PWADs at hand. The game and its release come from `--iwad` (the file, by its hash), `--version`, or
+the demo's own footer (its `-iwad`, found in `--wads`); the PWADs and patches from the footer's `-file` and `-deh`
+(found by name in `--wads`) or `--pwad`, in order; `--no-pwads` takes none (an IWAD's own demos). `--package` pins
+the project to a package (its version and hash); the settings' names and options are the core's own, compiled in
+from the declaration.
 
 Every format dsda-doom plays: Doom 1.0-1.2 (no version byte; its monster flags are not in it - the footer's,
 or `--respawn`, `--fast`, `--nomonsters`), 1.4-1.9 (the complevel as `G_GetOriginalDoomCompatLevel` gives it:

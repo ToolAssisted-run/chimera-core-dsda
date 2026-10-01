@@ -187,6 +187,38 @@ def controllers():
         return json.loads(subprocess.run([exe], check=True, capture_output=True, text=True).stdout)
 
 
+# the import dialog Chimera draws from the declaration (as it draws the settings):
+# ImportMovie's demo, its files (mounted under their names, each option set to
+# them) and its options (settings, true when ticked) - wbx-entry.c reads them
+MOVIE_IMPORT = collections.OrderedDict([
+    ("menu", "Import Demo (LMP)..."),
+    ("movie", collections.OrderedDict([("label", "Demo"), ("extensions", ["lmp"])])),
+    ("files", [
+        collections.OrderedDict([("option", "importIwad"), ("label", "IWAD"), ("firmware", True), ("required", True),
+                                 ("extensions", ["wad"])]),
+        collections.OrderedDict([("option", "importPwads"), ("label", "PWADs and patches, in load order"), ("slot", "pwad"),
+                                 ("multiple", True), ("separator", ";"), ("extensions", ["wad", "deh", "bex"])]),
+    ]),
+    ("options", [
+        collections.OrderedDict([("name", "importNoPwads"), ("display", "No PWADs (an IWAD's own demo)"), ("type", "bool"),
+            ("description", "Takes none of the PWADs and patches the demo's footer names. For the IWADs' own demos, recorded "
+             "with a fix that is now part of the IWAD.")]),
+        collections.OrderedDict([("name", "importLongtics"), ("display", "Recorded with longtics (Heretic, Hexen)"), ("type", "bool"),
+            ("description", "A Heretic or Hexen demo recorded with -longtics whose header does not say so (Hexen+'s, before "
+             "vvHeretic's header flag): its turns are read at 16 bits. A demo whose header says so needs nothing.")]),
+        collections.OrderedDict([("name", "importRespawn"), ("display", "Monsters respawn (Doom 1.0-1.2, Heretic, Hexen)"), ("type", "bool"),
+            ("description", "A demo recorded with -respawn whose header does not say so: Doom 1.0-1.2's demos hold no monster "
+             "flags, Heretic's and Hexen's only when dsda recorded them. A later Doom format holds its own.")]),
+        collections.OrderedDict([("name", "importFast"), ("display", "Fast monsters (Doom 1.0-1.2, Heretic, Hexen)"), ("type", "bool"),
+            ("description", "A demo recorded with -fast: Doom 1.0-1.2's, Heretic's and Hexen's headers do not hold it. A later "
+             "Doom format holds its own.")]),
+        collections.OrderedDict([("name", "importNomonsters"), ("display", "No monsters (Doom 1.0-1.2, Heretic, Hexen)"), ("type", "bool"),
+            ("description", "A demo recorded with -nomonsters whose header does not say so: Doom 1.0-1.2's demos hold no monster "
+             "flags, Heretic's and Hexen's only when dsda recorded them. A later Doom format holds its own.")]),
+    ]),
+])
+
+
 def declaration():
     base = json.load(open(os.path.join(HERE, "waterbox-base.json")), object_pairs_hook=collections.OrderedDict)
     ctl = controllers()
@@ -221,6 +253,7 @@ def declaration():
         e["requiredWhen"] = {"setting": "version", "is": v.id}
         fw.append(e)
     out["firmware"] = fw
+    out["movieImport"] = MOVIE_IMPORT
     return out
 
 
@@ -300,6 +333,14 @@ def keybinds():
 
 
 def main():
+    # the dialog sets only what ImportMovie reads, into a slot the core has
+    entry = open(os.path.join(HERE, "wbx-entry.c")).read()
+    for name in [f["option"] for f in MOVIE_IMPORT["files"]] + [o["name"] for o in MOVIE_IMPORT["options"]]:
+        if '"%s"' % name not in entry:
+            sys.exit("movieImport: wbx-entry.c's ImportMovie does not read %s" % name)
+    for f in MOVIE_IMPORT["files"]:
+        if "slot" in f and f["slot"] not in [slot["id"] for slot in SLOTS["slots"]]:
+            sys.exit("movieImport: no file slot %s" % f["slot"])
     outputs = {
         "default_keybinds.json": json.dumps(keybinds(), indent=2) + "\n",
         "waterbox.config": json.dumps(declaration(), indent=2, ensure_ascii=False) + "\n",
