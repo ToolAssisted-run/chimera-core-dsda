@@ -221,6 +221,77 @@ MOVIE_IMPORT = collections.OrderedDict([
 ])
 
 
+# ---- what the controls and the system are called ----
+# The frontend keeps no table of these: a core says what its own are called.
+# MNEMONICS is the letter each button writes into a movie's text and heads its
+# input column with, by the button's name - whole, or without its player ("P2
+# Up" is found under "Up"), so one line serves every pad. AXIS_HEADERS is the
+# short header of each axis's column. (An entry is read by position: a letter
+# may change and no movie made before it is harmed.)
+MNEMONICS = {
+    "Fire": "F", "Use": "U", "Forward": "^", "Backward": "v", "Turn Left": "{", "Turn Right": "}",
+    "Strafe Left": "<", "Strafe Right": ">", "Run": "R", "Strafe": "S", "Weapon Select 1": "1",
+    "Weapon Select 2": "2", "Weapon Select 3": "3", "Weapon Select 4": "4", "Weapon Select 5": "5",
+    "Weapon Select 6": "6", "Weapon Select 7": "7", "Pause": "P", "Jump": "J", "God": "G",
+    "No Clip": "N", "Change Gamma": "G", "Automap Toggle": "a", "Automap +": "+", "Automap -": "-",
+    "Automap Full/Zoom": "z", "Automap Follow": "f", "Automap Up": "u", "Automap Down": "d",
+    "Automap Right": "r", "Automap Left": "l", "Automap Grid": "g", "Automap Mark": "m",
+    "Automap Clear Marks": "c", "Camera Reset": "R", "Inventory Left": "[", "Inventory Right": "]",
+    "Use Artifact": "A", "Look Up": "K", "Look Down": "D", "Look Center": "C", "Fly Up": "u",
+    "Fly Down": "p", "Fly Center": "c", "End Player": "E",
+}
+AXIS_HEADERS = {
+    "P1 Run Speed": "Run", "P1 Strafe Speed": "Str", "P1 Turn Speed": "Turn",
+    "P1 Turn Speed Frac.": "turn", "P1 Weapon Select": "W", "P1 Mouse Run": "mRun",
+    "P1 Mouse Turn": "mTurn", "P1 Free Look": "fLook", "P2 Run Speed": "Run",
+    "P2 Strafe Speed": "Str", "P2 Turn Speed": "Turn", "P2 Turn Speed Frac.": "turn",
+    "P2 Weapon Select": "W", "P2 Mouse Run": "mRun", "P2 Mouse Turn": "mTurn",
+    "P2 Free Look": "fLook", "P3 Run Speed": "Run", "P3 Strafe Speed": "Str",
+    "P3 Turn Speed": "Turn", "P3 Turn Speed Frac.": "turn", "P3 Weapon Select": "W",
+    "P3 Mouse Run": "mRun", "P3 Mouse Turn": "mTurn", "P3 Free Look": "fLook",
+    "P4 Run Speed": "Run", "P4 Strafe Speed": "Str", "P4 Turn Speed": "Turn",
+    "P4 Turn Speed Frac.": "turn", "P4 Weapon Select": "W", "P4 Mouse Run": "mRun",
+    "P4 Mouse Turn": "mTurn", "P4 Free Look": "fLook", "Camera Mode": "cM",
+    "Camera Run Speed": "cRun", "Camera Strafe Speed": "cStr", "Camera Turn Speed": "cTurn",
+    "Camera Fly": "cFly", "P1 Look": "Look", "P1 Fly": "Fly", "P1 Artifact": "Art",
+    "P1 Special": "Spec", "P2 Look": "Look", "P2 Fly": "Fly", "P2 Artifact": "Art",
+    "P2 Special": "Spec", "P3 Look": "Look", "P3 Fly": "Fly", "P3 Artifact": "Art",
+    "P3 Special": "Spec", "P4 Look": "Look", "P4 Fly": "Fly", "P4 Artifact": "Art",
+    "P4 Special": "Spec",
+}
+SYSTEM_NAMES = {
+    "Doom": "Doom",
+}
+
+
+def _bare(name):
+    """A control's name without its player: "P2 Up" -> "Up"."""
+    head, _, rest = name.partition(" ")
+    return rest if rest and head[:1] == "P" and head[1:].isdigit() else name
+
+
+def mnemonics_for(buttons):
+    """The "mnemonics" of an input declaration: a letter for every one of its
+    buttons, and for nothing else. A button nobody gave a letter stops the
+    build - the engine would give it its rule's guess, and two columns of one
+    pad would share a letter with nobody having decided it."""
+    out = {}
+    for b in buttons:
+        key = b if b in MNEMONICS else _bare(b)
+        if key not in MNEMONICS:
+            raise SystemExit("no mnemonic for the button %r (MNEMONICS in %s)" % (b, __file__))
+        out[key] = MNEMONICS[key]
+    return out
+
+
+def with_headers(axes):
+    """The axes with their column headers; an axis nobody named stops the build."""
+    missing = [a["name"] for a in axes if a["name"] not in AXIS_HEADERS]
+    if missing:
+        raise SystemExit("no header for the axes %s (AXIS_HEADERS in %s)" % (missing, __file__))
+    return [dict(a, header=AXIS_HEADERS[a["name"]]) for a in axes]
+
+
 def declaration():
     base = json.load(open(os.path.join(HERE, "waterbox-base.json")), object_pairs_hook=collections.OrderedDict)
     ctl = controllers()
@@ -234,12 +305,15 @@ def declaration():
                 out["machines"].append(collections.OrderedDict([
                     ("id", "Doom"), ("label", label), ("when", [g]),
                     ("input", collections.OrderedDict([("name", names[fmt]), ("_comment", v["_comment"]),
-                                                       ("buttons", ctl[fmt]["buttons"]), ("axes", ctl[fmt]["axes"])])),
+                                                       ("buttons", ctl[fmt]["buttons"]),
+                                                       ("mnemonics", mnemonics_for(ctl[fmt]["buttons"])),
+                                                       ("axes", with_headers(ctl[fmt]["axes"]))])),
                 ]))
             out["_machines_note"] = ("One machine a game, all of them BizHawk's Doom system, each with its game's controller; "
                                      "the IWAD the project brings (any release) and the compatibility level say the rest.")
             continue
         out[k] = v
+    out["systemNames"] = SYSTEM_NAMES
     out["settings"] = SETTINGS
     fw = []
     for g, label, _ in GAMES:
