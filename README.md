@@ -190,6 +190,14 @@ savestate every frame.
 - `0013-checkspot-absent-players.patch`: a deathmatch start skips the players not in the game (without player
   one, vanilla's `G_CheckSpot` dereferenced its missing body).
 
+## Using it in Chimera
+
+Chimera ships no cores and downloads nothing. Download the core's `.chimeraCore` package from this repository's
+[Releases](https://github.com/ToolAssisted-run/chimera-core-dsda/releases) page (a rolling `dev` build, dated
+`nightly-YYYY-MM-DD` builds), or build it, and put it in the `Cores` folder beside `Chimera.exe` (or the folder
+chosen in File > Core Manager > Change folder...). The same file works on Linux and on Windows. No IWAD is in the
+package: a project brings its game's IWAD as firmware (the table above).
+
 ## Building
 
 ```
@@ -203,7 +211,12 @@ miniBox is taken from `MB=`/`MINIBOX_DIR` (`-m` for the scripts), else a Chimera
 its C++ guest toolchain built (`meson setup build/meson-cpp -Dguest_cpp=true`). The patches go onto
 `extern/dsda-doom` on the first build (`waterbox/apply-patches.sh`, all or nothing); dsda-doom.wad, the
 engine's own data, is built from upstream's `data/` with its own tool. `waterbox/gen-declaration.py` writes
-`waterbox.config`, `file_slots.json`, `default_keybinds.json` and `dsda-versions.h`.
+`waterbox.config`, `file_slots.json`, `default_keybinds.json`, `dsda-games.h` and `dsda-options.h`.
+`./waterbox/build-package.sh -r <chimera>` writes the package into a Chimera source checkout's `build/Cores`
+instead.
+
+The whole build, as CI does it, is in [docs/BUILDING.md](docs/BUILDING.md); [AGENTS.md](AGENTS.md) is the guide
+for an AI coding agent.
 
 ## The gate
 
