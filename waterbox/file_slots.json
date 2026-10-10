@@ -1,5 +1,5 @@
 {
-  "_comment": "A Doom project picks its game (Chimera's System), whose IWAD - any release of it - is the firmware; its PWADs and DeHackEd patches come here, in the order the engine loads them (-file, then -deh).",
+  "_comment": "This file lists the kinds of file a project of this core can hold. Chimera's New Project window is built from it. A Doom project chooses its game (Chimera's System). The IWAD of that game, in any release, is the firmware. The project's PWADs and DeHackEd patches are listed here, in the order the engine loads them (-file first, then -deh).",
   "slots": [
     {
       "id": "pwad",
@@ -11,7 +11,7 @@
         "deh",
         "bex"
       ],
-      "help": "The mod's WADs (.wad) and DeHackEd patches (.deh, .bex), in load order - a later WAD's lumps win over an earlier's. None for the game itself."
+      "help": "The WADs (.wad) and DeHackEd patches (.deh, .bex) of the mod, in the order they are loaded. Where two WADs hold the same lump, the later one wins. Give none to play the game itself."
     }
   ]
 }

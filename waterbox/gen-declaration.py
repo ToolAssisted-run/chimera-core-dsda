@@ -85,99 +85,178 @@ SKILLS = ["1 - I'm too young to die", "2 - Hey, not too rough", "3 - Hurt me ple
 # its sync settings, then its (non-sync) settings - part of the machine here,
 # as Chimera has no cosmetic settings.
 SETTINGS = [
-    S("game", "Game", "enum", GAMES[0][0], "Which game the machine is (Chimera's System): the IWAD's. Not on the settings page.",
+    S("game", "Game", "enum", GAMES[0][0], "Which game the machine is (Chimera's System). It is the game the "
+        "IWAD belongs to. It is not shown on the settings page.",
       options=[g for g, _, _ in GAMES]),
     S("compatibilityLevel", "Compatibility Level", "enum", "2 - Doom & Doom 2 v1.9",
-      "The version of Doom or its ports that this movie is meant to emulate. Highest vanilla-compatible level is 'Final Doom'. Newer WADs may require higher levels. Standalone DSDA-Doom defaults to MBF21, which supports features of all of the lower levels, but is the farthest from vanilla.",
+      "The version of Doom, or of one of its ports, whose behaviour this "
+      "movie follows. The highest level that is compatible with the original"
+      " game is 'Final Doom'. Newer WADs may need a higher level. DSDA-Doom "
+      "used alone defaults to MBF21, which supports the features of all "
+      "lower levels but is the furthest from the original game.",
       options=COMPLEVELS, when=DOOM_GAMES),
     S("skillLevel", "Skill Level", "enum", "4 - Ultra-Violence",
-      "Difficulty setting. Vanilla defaults to 'Hurt me plenty', but the de-facto current standard is 'Ultra-Violence'.", options=SKILLS),
-    S("multiplayerMode", "Multiplayer Mode", "enum", "Single Player / Cooperative", "Indicates the multiplayer mode.",
+      "The difficulty. The original game defaults to 'Hurt me plenty', but "
+      "'Ultra-Violence' is the usual standard today.", options=SKILLS),
+    S("multiplayerMode", "Multiplayer Mode", "enum", "Single Player / Cooperative", "Which multiplayer mode the game is played in.",
       options=["Single Player / Cooperative", "Deathmatch", "Alternate Deathmatch (v2.0)"]),
-    S("initialEpisode", "Initial Episode", "int", 1, "Selects the initial episode. Ignored for non-episodic IWADs (e.g., DOOM2) and Shareware.", min=0, max=9),
-    S("initialMap", "Initial Map", "int", 1, "Selects the initial map.", min=1, max=99),
-    S("fastMonsters", "Fast Monsters", "bool", False, "Makes monsters move and attack much faster. Forced to 'true' when playing Nightmare! difficulty."),
-    S("monstersRespawn", "Monsters Respawn", "bool", False, "Makes monsters respawn shortly after dying. Forced to 'true' when playing Nightmare! difficulty."),
+    S("initialEpisode", "Initial Episode", "int", 1, "The episode the game starts in. It is ignored for IWADs without "
+        "episodes (for example DOOM2) and for Shareware.", min=0, max=9),
+    S("initialMap", "Initial Map", "int", 1, "The map the game starts in.", min=1, max=99),
+    S("fastMonsters", "Fast Monsters", "bool", False, "Makes monsters move and attack much faster. It is always on at the "
+        "Nightmare! difficulty."),
+    S("monstersRespawn", "Monsters Respawn", "bool", False, "Makes monsters come back to life shortly after dying. It is always "
+        "on at the Nightmare! difficulty."),
     S("noMonsters", "No Monsters", "bool", False, "Removes all monsters from the level."),
-    S("pistolStart", "Pistol Start", "bool", False, "Starts every level with a clean slate, with nothing carried over from previous levels. Health is reset to 100% as well."),
-    S("coopSpawns", "Coop Mode Spawns", "bool", False, "Play single-player mode with cooperative mode thing spawns."),
-    S("chainEpisodes", "Chain Episodes", "bool", False, "Completing one episode leads to the next without interruption. Not available in vanilla."),
+    S("pistolStart", "Pistol Start", "bool", False, "Starts every level from nothing, with no weapons or items kept from"
+        " earlier levels. Health is also reset to 100%."),
+    S("coopSpawns", "Coop Mode Spawns", "bool", False, "Plays a single-player game with the monsters and items that the "
+        "cooperative mode places."),
+    S("chainEpisodes", "Chain Episodes", "bool", False, "Finishing one episode leads to the next without a break. The "
+        "original game does not have this."),
     S("alwaysRun", "Always Run", "bool", True,
-      "Toggles whether the player is permanently in the running state, without the slower walking speed available. This emulates a bug in vanilla Doom: setting the joystick run button to an invalid high number causes the game to always have it enabled."),
+      "Whether the player always runs, with the slower walking speed not "
+      "available. This reproduces a bug in the original Doom: setting the "
+      "joystick run button to an invalid high number makes the game treat it"
+      " as always pressed."),
     S("renderWipescreen", "Render Wipescreen", "bool", True,
-      "Enables screen melt - an effect seen when Doom changes scene, for example, when starting or exiting a level. Can't be disabled in vanilla. Its frames are lag: the game waits."),
+      "Turns on the screen melt, the effect shown when Doom changes scene, "
+      "for example when a level starts or ends. The original game cannot "
+      "turn it off. Its frames are lag frames, in which the game waits."),
     S("turningResolution", "Turning Resolution", "enum", "16 bits (longtics)",
-      "'Shorttics' refers to decreased turning resolution normally used for demos. 'Longtics' refers to the regular turning resolution outside of a demo-recording environment. Newer demo formats support both.",
+      "'Shorttics' is the reduced turning precision normally used for demos."
+      " 'Longtics' is the normal turning precision outside demo recording. "
+      "Newer demo formats support both.",
       options=["16 bits (longtics)", "8 bits (shorttics)"]),
-    S("mouseTurnSensitivity", "Horizontal Mouse Sensitivity", "int", 10, "How fast the Doom player will turn when using the mouse.", min=0, max=100),
-    S("mouseRunSensitivity", "Vertical Mouse Sensitivity", "int", 1, "How fast the Doom player will run when using the mouse.", min=0, max=100),
+    S("mouseTurnSensitivity", "Horizontal Mouse Sensitivity", "int", 10, "How fast the player turns when the mouse is used.", min=0, max=100),
+    S("mouseRunSensitivity", "Vertical Mouse Sensitivity", "int", 1, "How fast the player runs when the mouse is used.", min=0, max=100),
     S("strafe50Turns", "Turning During Strafe50", "enum", "Allow",
-      "\"Strafe\" key is required to convert angular movement into strafe50, without it maximum strafe value is 40. So using keyboard and mouse, it's impossible to turn during strafe50. But if strafe50+turning appears in a demo, the game will process it fine, which makes it a TAS-only feature. This setting allows disabling it for maximum authenticity.",
+      "The \"Strafe\" key is needed to turn a turning movement into the "
+      "fastest sideways movement (strafe50). Without it the largest sideways"
+      " value is 40. So with a keyboard and a mouse it is impossible to turn"
+      " during strafe50. If strafe50 together with turning appears in a "
+      "demo, the game accepts it, which makes it possible only in a tool-"
+      "assisted run. This setting can turn it off for the most authentic "
+      "behaviour.",
       options=["Ignore", "Allow"]),
     S("preventLevelExit", "Prevent Level Exit", "bool", False,
-      "Level exit triggers won't have an effect. This is useful for debugging / optimizing / botting purposes. Not available in vanilla."),
+      "Level exits have no effect. This is useful for debugging, optimising "
+      "and scripted play. The original game does not have this."),
     S("preventGameEnd", "Prevent Game End", "bool", False,
-      "Game end triggers won't have an effect. This is useful for debugging / optimizing / botting purposes. Not available in vanilla."),
-    S("turbo", "Turbo", "int", -1, "Modifies the player running / strafing speed [0-255]. '-1' means Disabled.", min=-1, max=255),
-    S("rngSeed", "Initial RNG Seed", "int", 1993, "Only for compatibility level 7 (Boom) and above. Default value is 1993.",
+      "The triggers that end the game have no effect. This is useful for "
+      "debugging, optimising and scripted play. The original game does not "
+      "have this."),
+    S("turbo", "Turbo", "int", -1, "Changes the player's running and sideways speed (0 to 255). -1 "
+        "means it is off.", min=-1, max=255),
+    S("rngSeed", "Initial RNG Seed", "int", 1993, "The starting value (seed) of the game's random number generator. It"
+        " is used only for compatibility level 7 (Boom) and above. The "
+        "default value is 1993.",
       min=0, max=2147483647, when=DOOM_GAMES),
-] + [S("player%dPresent" % p, "Player %d Present" % p, "bool", p == 1, "Specifies if player %d is present" % p) for p in range(1, 5)] + [
-    S("player%dClass" % p, "[Hexen] Player %d Class" % p, "enum", "Fighter", "The Hexen class to use for player %d." % p,
+] + [S("player%dPresent" % p, "Player %d Present" % p, "bool", p == 1, "Whether player %d is present." % p) for p in range(1, 5)] + [
+    S("player%dClass" % p, "[Hexen] Player %d Class" % p, "enum", "Fighter", "The Hexen class of player %d." % p,
       options=["Fighter", "Cleric", "Mage"], when=["hexen"]) for p in range(1, 5)] + [
     S("scaleFactor", "Internal Resolution Scale Factor", "int", 1,
-      "Which factor to increase internal resolution by [1 - 12]. Improves \"quality\" of the rendered image at the cost of accuracy. Vanilla resolution is 320x200 resized to 4:3 DAR on a CRT monitor. The core's picture is at most 3840x2400: the widescreen aspects go up to 5.",
+      "The number the internal resolution is multiplied by (1 to 12). The "
+      "picture looks sharper but is less faithful to the original. The "
+      "original game's resolution is 320x200, stretched to a 4:3 shape on a "
+      "CRT monitor. The core's picture is at most 3840x2400, so the "
+      "widescreen shapes go up to 5.",
       min=1, max=12),
     S("internalAspect", "Internal Aspect Ratio", "enum", "Native",
-      "Sets aspect ratio of the rendered screen. 'Native' is multiples of 320x200 with aspect correction (to 4:3) applied by the frontend, similar to vanilla. Other modes produce pre-corrected image, useful for viewing Automap on higher resolutions (to avoid pixel distortion caused by external aspect correction).",
+      "The shape of the picture the game draws. 'Native' is a multiple of "
+      "320x200, and Chimera stretches it to 4:3, much like the original "
+      "game. The other choices draw a picture that already has the right "
+      "shape. That is useful for viewing the Automap at higher resolutions, "
+      "because it avoids the distorted pixels that stretching afterwards "
+      "causes.",
       options=["Native", "16:9", "16:10", "4:3"]),
-    S("sfxVolume", "Sfx Volume", "int", 8, "Sound effects volume [0 - 15].", min=0, max=15),
-    S("musicVolume", "Music Volume", "int", 8, "[0 - 15]", min=0, max=15),
+    S("sfxVolume", "Sfx Volume", "int", 8, "The volume of the sound effects (0 to 15).", min=0, max=15),
+    S("musicVolume", "Music Volume", "int", 8, "The volume of the music (0 to 15).", min=0, max=15),
     S("gamma", "Gamma Correction Level", "int", 0,
-      "Increases brightness [0 - 4]. Default value in vanilla is \"OFF\" (0). The Change Gamma button cycles it.", min=0, max=4),
-    S("showMessages", "Show Messages", "bool", True, "Displays messages about items you pick up. Default value in vanilla is \"ON\"."),
-    S("reportSecrets", "Report Revealed Secrets", "bool", False, "Shows an on-screen notification when revealing a secret. Not available in vanilla."),
-    S("hudMode", "HUD Mode", "enum", "Vanilla", "Sets heads-up display mode.", options=["Vanilla", "DSDA", "None"]),
-    S("dsdaExHud", "Extended HUD", "bool", False, "Shows DSDA-Doom-specific information above vanilla heads-up-display. Not available in vanilla."),
+      "Makes the picture brighter (0 to 4). The original game's default is "
+      "\"OFF\" (0). The Change Gamma button steps through the values.", min=0, max=4),
+    S("showMessages", "Show Messages", "bool", True, "Shows messages about the items you pick up. The original game's "
+        "default is \"ON\"."),
+    S("reportSecrets", "Report Revealed Secrets", "bool", False, "Shows a message on screen when a secret is found. The original game"
+        " does not have this."),
+    S("hudMode", "HUD Mode", "enum", "Vanilla", "Which heads-up display (HUD) is shown.", options=["Vanilla", "DSDA", "None"]),
+    S("dsdaExHud", "Extended HUD", "bool", False, "Shows DSDA-Doom's own information above the original heads-up "
+        "display. The original game does not have this."),
     S("displayCoordinates", "Display Coordinates", "bool", False,
-      "Shows player position, angle, velocity, and distance travelled per frame. Color indicates movement tiers: green - SR40, blue - SR50, red - turbo/wallrun. Available in vanilla via the IDMYPOS cheat code, however vanilla only shows angle, X, and Y."),
+      "Shows the player's position, angle, speed and distance travelled per "
+      "frame. The colour shows the kind of movement: green for SR40, blue "
+      "for SR50, red for turbo or wallrun. The original game has this "
+      "through the IDMYPOS cheat code, but it shows only the angle, X and Y."),
     S("displayCommands", "Display Commands", "bool", False,
-      "Shows input history on the screen. History size is 10, empty commands are excluded. Not available in vanilla."),
-    S("mapTotals", "Automap Totals", "bool", False, "Shows counts for kills, items, and secrets on Automap. Not available in vanilla."),
-    S("mapTime", "Automap Time", "bool", False, "Shows elapsed time on Automap. Not available in vanilla."),
-    S("mapCoordinates", "Automap Coordinates", "bool", False, "Shows in-level coordinates on Automap. Not available in vanilla."),
-    S("mapOverlay", "Automap Overlay", "enum", "Disabled", "Shows Automap on top of gameplay. Not available in vanilla.",
+      "Shows the recent inputs on the screen. The last 10 are kept, and "
+      "empty inputs are left out. The original game does not have this."),
+    S("mapTotals", "Automap Totals", "bool", False, "Shows the counts of kills, items and secrets on the Automap. The "
+        "original game does not have this."),
+    S("mapTime", "Automap Time", "bool", False, "Shows the elapsed time on the Automap. The original game does not "
+        "have this."),
+    S("mapCoordinates", "Automap Coordinates", "bool", False, "Shows the coordinates within the level on the Automap. The original"
+        " game does not have this."),
+    S("mapOverlay", "Automap Overlay", "enum", "Disabled", "Shows the Automap on top of the game view. The original game does "
+        "not have this.",
       options=["Disabled", "Enabled", "Dark"]),
-    S("mapDetails", "Automap Details", "enum", "Normal", "Exposes all linedefs and things. Available in vanilla via the IDDT cheat code.",
+    S("mapDetails", "Automap Details", "enum", "Normal", "Shows all lines (linedefs) and things on the Automap. The original "
+        "game has this through the IDDT cheat code.",
       options=["Normal", "Linedefs", "Linedefs and things"]),
     S("mapTrail", "Map Trail", "bool", False,
-      "Shows previous positions of the player as a trail when Automap details are enabled. Not available in vanilla."),
-    S("mapTrailSize", "Map Trail Size", "int", 105, "Number of previous positions to display as a trail on Automap [1 - 350].", min=1, max=350),
-    S("fullVision", "Full Vision", "bool", False, "Disables all darkness. Available in vanilla via the IDBEHOLDL cheat code."),
+      "Shows the player's earlier positions as a trail when Automap Details "
+      "is on. The original game does not have this."),
+    S("mapTrailSize", "Map Trail Size", "int", 105, "How many earlier positions are shown as a trail on the Automap (1 "
+        "to 350).", min=1, max=350),
+    S("fullVision", "Full Vision", "bool", False, "Removes all darkness. The original game has this through the "
+        "IDBEHOLDL cheat code."),
     S("displayPlayer", "Player Point of View", "int", 1,
-      "Which of the players' point of view to use during rendering [1 - 4]; a player not present falls to the first one present.", min=1, max=4),
+      "Which player's point of view the picture is drawn from (1 to 4). If "
+      "that player is not present, the first player who is present is used.", min=1, max=4),
 ] + [
     # what a demo can dictate beyond BizHawk's settings (the importer,
     # lmp-import.cpp, sets them): its header's option block and DSDA format,
     # its footer's arguments
     S("soloNet", "Solo Net", "bool", False,
-      "Plays a single player as a netgame (dsda's -solo-net), as a demo's footer may say. More than one player is a netgame anyway."),
+      "Plays a single player as a network game (DSDA-Doom's -solo-net "
+      "option), which the footer of a demo may ask for. A game with more "
+      "than one player is a network game anyway."),
     S("demoOptions", "Boom/MBF Options", "string", "",
-      "The game options a Boom-or-later demo's header holds, as hex: Boom's, MBF's and PrBoom's 64 bytes, or MBF21's 21 and its comp flags. Monster memory, friction, pushers, bobbing, demo insurance, infighting, helper dogs and their distance, the monsters' behaviour, the comp flags. Empty: the complevel's defaults and a PWAD's OPTIONS lump, as dsda records. The monster flags and the seed in it are the settings'.",
+      "The game options stored in the header of a demo made for Boom or a "
+      "later port, written as hexadecimal. They are the 64 bytes of Boom, "
+      "MBF and PrBoom, or the 21 bytes of MBF21 followed by its "
+      "compatibility flags. They cover monster memory, friction, pushers, "
+      "bobbing, demo insurance, infighting, helper dogs and their distance, "
+      "the monsters' behaviour and the compatibility flags. When this is "
+      "empty, the defaults of the compatibility level and a PWAD's OPTIONS "
+      "lump are used, as DSDA-Doom records them. The monster flags and the "
+      "seed are taken from the settings, not from this value.",
       when=DOOM_GAMES),
     S("extendedCommands", "Extended Commands", "enum", "Off",
-      "dsda's extended tic commands, which its DSDA demo format holds: jumping and free look, and with the casual features god mode and no clipping. Off for every other demo format.",
+      "DSDA-Doom's extended commands, which its own DSDA demo format holds: "
+      "jumping and free look, and, with the casual features, god mode and "
+      "walking through walls. It is off for every other demo format.",
       options=["Off", "On", "On, with casual features"]),
     S("emulatePrBoom", "Emulate PrBoom+ Version", "string", "",
-      "Plays as an older PrBoom+ did (dsda's -emulate, a version such as 2.5.0.8), as a demo's footer may ask. Empty: as dsda plays."),
+      "Plays the way an older PrBoom+ did (DSDA-Doom's -emulate option, with"
+      " a version such as 2.5.0.8), which the footer of a demo may ask for. "
+      "When this is empty, the game plays as DSDA-Doom does."),
     S("spechitAddress", "Spechit Overrun Base Address", "int", 0,
-      "The memory address the spechit overflow's emulation assumes (dsda's -spechit), as a demo's footer may say. 0: doom2.exe's (0x01C09C98).",
+      "The memory address that the emulation of the spechit overflow assumes"
+      " (DSDA-Doom's -spechit option), which the footer of a demo may give. "
+      "0 means the address in doom2.exe (0x01C09C98).",
       min=0, max=2147483647, when=DOOM_GAMES),
-    S("overrunSpechit", "Emulate Spechit Overflow", "bool", True, "Emulates vanilla's spechit overflow (dsda's overrun_spechit_emulate, on by default).", when=DOOM_GAMES),
-    S("overrunReject", "Emulate Reject Overflow", "bool", True, "Emulates vanilla's REJECT overflow (overrun_reject_emulate, on by default).", when=DOOM_GAMES),
-    S("overrunIntercept", "Emulate Intercepts Overflow", "bool", True, "Emulates vanilla's intercepts overflow (overrun_intercept_emulate, on by default).", when=DOOM_GAMES),
-    S("overrunPlayeringame", "Emulate Playeringame Overflow", "bool", True, "Emulates vanilla's playeringame overflow (overrun_playeringame_emulate, on by default).", when=DOOM_GAMES),
-    S("overrunDonut", "Emulate Donut Overflow", "bool", False, "Emulates vanilla's donut overflow (overrun_donut_emulate, off by default).", when=DOOM_GAMES),
-    S("overrunMissedBackside", "Emulate Missed Backside Overflow", "bool", False, "Emulates vanilla's missed backside overflow (overrun_missedbackside_emulate, off by default).", when=DOOM_GAMES),
+    S("overrunSpechit", "Emulate Spechit Overflow", "bool", True, "Reproduces the original game's spechit overflow bug (DSDA-Doom's "
+        "overrun_spechit_emulate option, which is on by default).", when=DOOM_GAMES),
+    S("overrunReject", "Emulate Reject Overflow", "bool", True, "Reproduces the original game's REJECT overflow bug (the "
+        "overrun_reject_emulate option, which is on by default).", when=DOOM_GAMES),
+    S("overrunIntercept", "Emulate Intercepts Overflow", "bool", True, "Reproduces the original game's intercepts overflow bug (the "
+        "overrun_intercept_emulate option, which is on by default).", when=DOOM_GAMES),
+    S("overrunPlayeringame", "Emulate Playeringame Overflow", "bool", True, "Reproduces the original game's playeringame overflow bug (the "
+        "overrun_playeringame_emulate option, which is on by default).", when=DOOM_GAMES),
+    S("overrunDonut", "Emulate Donut Overflow", "bool", False, "Reproduces the original game's donut overflow bug (the "
+        "overrun_donut_emulate option, which is off by default).", when=DOOM_GAMES),
+    S("overrunMissedBackside", "Emulate Missed Backside Overflow", "bool", False, "Reproduces the original game's missed backside overflow bug (the "
+        "overrun_missedbackside_emulate option, which is off by default).", when=DOOM_GAMES),
 ]
 
 
@@ -203,20 +282,31 @@ MOVIE_IMPORT = collections.OrderedDict([
     ]),
     ("options", [
         collections.OrderedDict([("name", "importNoPwads"), ("display", "No PWADs (an IWAD's own demo)"), ("type", "bool"),
-            ("description", "Takes none of the PWADs and patches the demo's footer names. For the IWADs' own demos, recorded "
-             "with a fix that is now part of the IWAD.")]),
+            ("description", "Uses none of the PWADs and patches named in the demo's "
+                "footer. It is for the IWADs' own demos, which were recorded"
+                " with a fix that is now part of the IWAD.")]),
         collections.OrderedDict([("name", "importLongtics"), ("display", "Recorded with longtics (Heretic, Hexen)"), ("type", "bool"),
-            ("description", "A Heretic or Hexen demo recorded with -longtics whose header does not say so (Hexen+'s, before "
-             "vvHeretic's header flag): its turns are read at 16 bits. A demo whose header says so needs nothing.")]),
+            ("description", "For a Heretic or Hexen demo that was recorded with "
+                "-longtics but whose header does not say so (demos from "
+                "Hexen+, before vvHeretic added a header flag). Its turns "
+                "are then read as 16-bit values. A demo whose header says so"
+                " needs nothing.")]),
         collections.OrderedDict([("name", "importRespawn"), ("display", "Monsters respawn (Doom 1.0-1.2, Heretic, Hexen)"), ("type", "bool"),
-            ("description", "A demo recorded with -respawn whose header does not say so: Doom 1.0-1.2's demos hold no monster "
-             "flags, Heretic's and Hexen's only when dsda recorded them. A later Doom format holds its own.")]),
+            ("description", "For a demo that was recorded with -respawn but whose header"
+                " does not say so. Demos of Doom 1.0 to 1.2 hold no monster "
+                "flags, and Heretic and Hexen demos hold them only when "
+                "DSDA-Doom recorded them. A later Doom demo format holds its"
+                " own flags.")]),
         collections.OrderedDict([("name", "importFast"), ("display", "Fast monsters (Doom 1.0-1.2, Heretic, Hexen)"), ("type", "bool"),
-            ("description", "A demo recorded with -fast: Doom 1.0-1.2's, Heretic's and Hexen's headers do not hold it. A later "
-             "Doom format holds its own.")]),
+            ("description", "For a demo that was recorded with -fast. The headers of "
+                "Doom 1.0 to 1.2, Heretic and Hexen demos do not hold this. "
+                "A later Doom demo format holds its own flag.")]),
         collections.OrderedDict([("name", "importNomonsters"), ("display", "No monsters (Doom 1.0-1.2, Heretic, Hexen)"), ("type", "bool"),
-            ("description", "A demo recorded with -nomonsters whose header does not say so: Doom 1.0-1.2's demos hold no monster "
-             "flags, Heretic's and Hexen's only when dsda recorded them. A later Doom format holds its own.")]),
+            ("description", "For a demo that was recorded with -nomonsters but whose "
+                "header does not say so. Demos of Doom 1.0 to 1.2 hold no "
+                "monster flags, and Heretic and Hexen demos hold them only "
+                "when DSDA-Doom recorded them. A later Doom demo format "
+                "holds its own flags.")]),
     ]),
 ])
 
@@ -320,9 +410,9 @@ def declaration():
         iwad = IWAD[g][0]
         name = iwad.upper() if g not in ("freedoom1", "freedoom2") else iwad
         e = collections.OrderedDict([("id", iwad), ("display", "%s IWAD" % label),
-            ("description", "%s: the game, any release of it (or a modified IWAD). Yours to supply - the package carries "
-             "none of the game's data; the project pins the file's hash, and the compatibility level says which "
-             "release's rules it plays by." % name)])
+            ("description", "%s is the game. Any release of it can be used, and so can a modified IWAD. You have to "
+             "supply it. The package contains none of the game's data. The project records exactly which file "
+             "it was, and the compatibility level decides which release's rules the game follows." % name)])
         e["name"] = name
         e["requiredWhen"] = {"setting": "game", "is": g}
         fw.append(e)
@@ -374,10 +464,17 @@ def options_header():
 
 
 SLOTS = collections.OrderedDict([
-    ("_comment", "A Doom project picks its game (Chimera's System), whose IWAD - any release of it - is the firmware; its PWADs and DeHackEd patches come here, in the order the engine loads them (-file, then -deh)."),
+    ("_comment", "This file lists the kinds of file a project of this core can hold. "
+        "Chimera's New Project window is built from it. A Doom project "
+        "chooses its game (Chimera's System). The IWAD of that game, in any "
+        "release, is the firmware. The project's PWADs and DeHackEd patches "
+        "are listed here, in the order the engine loads them (-file first, "
+        "then -deh)."),
     ("slots", [collections.OrderedDict([
         ("id", "pwad"), ("title", "PWADs and patches"), ("min", 0), ("max", -1), ("formats", ["wad", "deh", "bex"]),
-        ("help", "The mod's WADs (.wad) and DeHackEd patches (.deh, .bex), in load order - a later WAD's lumps win over an earlier's. None for the game itself.")])]),
+        ("help", "The WADs (.wad) and DeHackEd patches (.deh, .bex) of the mod, "
+            "in the order they are loaded. Where two WADs hold the same "
+            "lump, the later one wins. Give none to play the game itself.")])]),
 ])
 
 
