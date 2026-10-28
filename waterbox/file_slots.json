@@ -3,7 +3,7 @@
   "slots": [
     {
       "id": "pwad",
-      "title": "PWADs and patches",
+      "title": "slot.pwad",
       "min": 0,
       "max": -1,
       "formats": [
@@ -11,7 +11,7 @@
         "deh",
         "bex"
       ],
-      "help": "The WADs (.wad) and DeHackEd patches (.deh, .bex) of the mod, in the order they are loaded. Where two WADs hold the same lump, the later one wins. Give none to play the game itself."
+      "help": "slot.pwad.help"
     }
   ]
 }

@@ -356,11 +356,11 @@ refuse_import() { # refuse_import <craft> <source> <expected> <what> [importer a
 		fail "imports: $what - $(echo "$out" | tail -1)"
 	fi
 }
-refuse_import players5 cl9 "the core has four" "a fifth player" --game freedoom2
-refuse_import keyframe cl21-dsda "starts from a key frame" "a start from a key frame" --game freedoom2
-refuse_import excmdsave cl21-dsda "saves or loads a game" "a game saved mid-demo" --game freedoom2
-refuse_import badversion cl2 "no demo format dsda-doom knows" "a version no format has" --game freedoom2
-refuse_import doom12 cl2 "does not say which IWAD" "a versionless demo without its game"
+refuse_import players5 cl9 "error.demo.more_than_four_players" "a fifth player" --game freedoom2
+refuse_import keyframe cl21-dsda "error.demo.key_frame" "a start from a key frame" --game freedoom2
+refuse_import excmdsave cl21-dsda "error.demo.saves_or_loads" "a game saved mid-demo" --game freedoom2
+refuse_import badversion cl2 "error.demo.version_unknown" "a version no format has" --game freedoom2
+refuse_import doom12 cl2 "error.demo.which_iwad" "a versionless demo without its game"
 
 echo "== export (the core's ImportMovie)"
 # export <name> <demo> <settings JSON> <command-line arguments> [file=mounted name]...
@@ -388,7 +388,7 @@ export_check freedoom2-DEMO1 "$work/demo2-1/freedoom2-DEMO1.lmp" '{"importIwad":
 	printf '{}' > "$work/export/refused/settings"
 	if out="$("$native" "$work/export/refused" --import 2>/dev/null)"; then
 		fail "export: a refused demo - ImportMovie succeeded"
-	elif echo "$out" | grep -q '^{"error": "players 5 are in the game; the core has four"}'; then
+	elif echo "$out" | grep -q '^{"error": "error.demo.more_than_four_players\\u001f5"}'; then
 		pass "export: a refused demo - $out"
 	else
 		fail "export: a refused demo - $out"
@@ -479,19 +479,19 @@ refuse() { # refuse <dir> <expected text> <what>
 mkdir -p "$work/no-iwad"
 cp "$wad" "$work/no-iwad/"
 printf '{"game": "freedoom2"}' > "$work/no-iwad/settings"
-refuse "$work/no-iwad" "needs its IWAD, freedoom2.wad (firmware), which is not there" "no IWAD"
+refuse "$work/no-iwad" "error.needs_its_iwad"$'\x1f'"freedoom2"$'\x1f'"freedoom2.wad" "no IWAD"
 mkwork "$work/no-game" "$fd2" freedoom2.wad '{"game": "doom3"}'
-refuse "$work/no-game" "none of the games the core knows" "a game the core does not have"
+refuse "$work/no-game" "error.setting_game_is_none"$'\x1f'"doom3" "a game the core does not have"
 mkwork "$work/no-player" "$fd2" freedoom2.wad '{"game": "freedoom2", "player1Present": false}'
-refuse "$work/no-player" "no player is present" "no player"
+refuse "$work/no-player" "error.no_player_present" "no player"
 mkwork "$work/scale13" "$fd2" freedoom2.wad '{"game": "freedoom2", "scaleFactor": 13}'
-refuse "$work/scale13" "it goes from 1 to 12" "scaleFactor 13"
+refuse "$work/scale13" "error.scale_factor_range"$'\x1f'"13" "scaleFactor 13"
 mkwork "$work/opt-hex" "$fd2" freedoom2.wad '{"game": "freedoom2", "compatibilityLevel": "9", "demoOptions": "0g"}'
-refuse "$work/opt-hex" "demoOptions is not hex" "an option block that is not hex"
+refuse "$work/opt-hex" "error.demo_options_not_hex" "an option block that is not hex"
 mkwork "$work/opt-cl2" "$fd2" freedoom2.wad "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"2\", \"demoOptions\": \"$(printf '%0128d' 0)\"}"
-refuse "$work/opt-cl2" "complevel 2 has none" "an option block at complevel 2"
+refuse "$work/opt-cl2" "error.demo_options_complevel_has_none"$'\x1f'"2" "an option block at complevel 2"
 mkwork "$work/opt-size" "$fd2" freedoom2.wad '{"game": "freedoom2", "compatibilityLevel": "11", "demoOptions": "0102"}'
-refuse "$work/opt-size" "is 2 bytes; complevel 11's option block is 64" "an option block of the wrong size"
+refuse "$work/opt-size" "error.demo_options_size"$'\x1f'"2"$'\x1f'"11"$'\x1f'"64" "an option block of the wrong size"
 
 echo "== clock"
 # the engine's time() and clock_gettime() are the core's (--wrap); musl's own

@@ -221,11 +221,11 @@ ECL_EXPORT const char *ImportMovie(void)
 	const unsigned char *demo = import_read(NULL, "movie", &size, NULL);
 	char err[1024];
 	if (!demo)
-		g_import_result = import_error("no demo: the file \"movie\" is not mounted");
+		g_import_result = import_error("error.import.no_demo");
 	else
 	{
 		g_import_result = lmpi_import(demo, size, &o, NULL, NULL, err, sizeof err);
 		if (!g_import_result) g_import_result = import_error(err);
 	}
-	return g_import_result ? g_import_result : "{\"error\": \"out of memory\"}\n";
+	return g_import_result ? g_import_result : "{\"error\": \"error.out_of_memory\"}\n";
 }

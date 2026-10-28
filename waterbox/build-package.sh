@@ -56,6 +56,8 @@ cp "$here/default_keybinds.json" "$staging/default_keybinds.json"
 # The core-declared file form for the project wizard - the frontend renders it,
 # this file decides it.
 cp "$here/file_slots.json" "$staging/file_slots.json"
+# the texts a person reads, a table per language (chimera docs/translations.md)
+cp -r "$here/languages" "$staging/languages"
 mkdir -p "$staging/assets"
 cp "$root/build/dsda-doom.wad" "$staging/assets/dsda-doom.wad"
 # the terms travel with the binary: dsda-doom (GPL-2.0-or-later) and zlib are

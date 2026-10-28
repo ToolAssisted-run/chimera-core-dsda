@@ -13,6 +13,26 @@ import collections, json, os, re, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
+# ---- the texts a person reads: every one is a key of languages/en.json
+# (chimera docs/translations.md). text() records the key's English and returns
+# the key, each of its arguments after it behind a 0x1F; texts_table() is the
+# table, the keys the driver's code names (already in it) beside these.
+TEXTS = {}
+
+
+def text(key, english, *args):
+    if TEXTS.setdefault(key, english) != english:
+        sys.exit("%s has two texts: %r and %r" % (key, TEXTS[key], english))
+    return "\x1f".join([key] + [str(a) for a in args])
+
+
+def texts_table():
+    path = os.path.join(HERE, "languages", "en.json")
+    table = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {"texts": {}}
+    table["texts"].update(TEXTS)
+    table["texts"] = dict(sorted(table["texts"].items()))
+    return json.dumps(table, indent="\t", ensure_ascii=False) + "\n"
+
 # ---- the games: machine setting "game"; all BizHawk's system, Doom
 GAMES = [
     # id, label, controller format
@@ -64,12 +84,15 @@ DOOM_GAMES = [g for g, _, f in GAMES if f == "doom"]
 RAVEN_GAMES = [g for g, _, f in GAMES if f != "doom"]
 
 
-def S(name, display, type_, default, description, **kw):
-    s = collections.OrderedDict([("name", name), ("display", display), ("type", type_)])
+def S(name, display, type_, default, description, key=None, args=(), **kw):
+    """a setting; its texts are keys setting.<name> and setting.<name>.about
+    (key= for settings that share them, their arguments in args)"""
+    key = key or "setting." + re.sub(r"[^a-z0-9]+", "_", name.lower())
+    s = collections.OrderedDict([("name", name), ("display", text(key, display, *args)), ("type", type_)])
     for k in ("options", "min", "max"):
         if k in kw: s[k] = kw.pop(k)
     s["default"] = default
-    s["description"] = description
+    s["description"] = text(key + ".about", description, *args)
     if "when" in kw: s["when"] = kw.pop("when")
     assert not kw, kw
     return s
@@ -152,9 +175,10 @@ SETTINGS = [
         " is used only for compatibility level 7 (Boom) and above. The "
         "default value is 1993.",
       min=0, max=2147483647, when=DOOM_GAMES),
-] + [S("player%dPresent" % p, "Player %d Present" % p, "bool", p == 1, "Whether player %d is present." % p) for p in range(1, 5)] + [
-    S("player%dClass" % p, "[Hexen] Player %d Class" % p, "enum", "Fighter", "The Hexen class of player %d." % p,
-      options=["Fighter", "Cleric", "Mage"], when=["hexen"]) for p in range(1, 5)] + [
+] + [S("player%dPresent" % p, "Player %1 Present", "bool", p == 1, "Whether player %1 is present.",
+                key="setting.player_present", args=(p,)) for p in range(1, 5)] + [
+    S("player%dClass" % p, "[Hexen] Player %1 Class", "enum", "Fighter", "The Hexen class of player %1.",
+      key="setting.player_class", args=(p,), options=["Fighter", "Cleric", "Mage"], when=["hexen"]) for p in range(1, 5)] + [
     S("scaleFactor", "Internal Resolution Scale Factor", "int", 1,
       "The number the internal resolution is multiplied by (1 to 12). The "
       "picture looks sharper but is less faithful to the original. The "
@@ -272,41 +296,41 @@ def controllers():
 # ImportMovie's demo, its files (mounted under their names, each option set to
 # them) and its options (settings, true when ticked) - wbx-entry.c reads them
 MOVIE_IMPORT = collections.OrderedDict([
-    ("menu", "Import Demo (LMP)..."),
-    ("movie", collections.OrderedDict([("label", "Demo"), ("extensions", ["lmp"])])),
+    ("menu", text("import.menu", "Import Demo (LMP)...")),
+    ("movie", collections.OrderedDict([("label", text("import.demo", "Demo")), ("extensions", ["lmp"])])),
     ("files", [
-        collections.OrderedDict([("option", "importIwad"), ("label", "IWAD"), ("firmware", True), ("required", True),
+        collections.OrderedDict([("option", "importIwad"), ("label", text("import.iwad", "IWAD")), ("firmware", True), ("required", True),
                                  ("extensions", ["wad"])]),
-        collections.OrderedDict([("option", "importPwads"), ("label", "PWADs and patches, in load order"), ("slot", "pwad"),
+        collections.OrderedDict([("option", "importPwads"), ("label", text("import.pwads", "PWADs and patches, in load order")), ("slot", "pwad"),
                                  ("multiple", True), ("separator", ";"), ("extensions", ["wad", "deh", "bex"])]),
     ]),
     ("options", [
-        collections.OrderedDict([("name", "importNoPwads"), ("display", "No PWADs (an IWAD's own demo)"), ("type", "bool"),
-            ("description", "Uses none of the PWADs and patches named in the demo's "
+        collections.OrderedDict([("name", "importNoPwads"), ("display", text("import.nopwads", "No PWADs (an IWAD's own demo)")), ("type", "bool"),
+            ("description", text("import.nopwads.about", "Uses none of the PWADs and patches named in the demo's "
                 "footer. It is for the IWADs' own demos, which were recorded"
-                " with a fix that is now part of the IWAD.")]),
-        collections.OrderedDict([("name", "importLongtics"), ("display", "Recorded with longtics (Heretic, Hexen)"), ("type", "bool"),
-            ("description", "For a Heretic or Hexen demo that was recorded with "
+                " with a fix that is now part of the IWAD."))]),
+        collections.OrderedDict([("name", "importLongtics"), ("display", text("import.longtics", "Recorded with longtics (Heretic, Hexen)")), ("type", "bool"),
+            ("description", text("import.longtics.about", "For a Heretic or Hexen demo that was recorded with "
                 "-longtics but whose header does not say so (demos from "
                 "Hexen+, before vvHeretic added a header flag). Its turns "
                 "are then read as 16-bit values. A demo whose header says so"
-                " needs nothing.")]),
-        collections.OrderedDict([("name", "importRespawn"), ("display", "Monsters respawn (Doom 1.0-1.2, Heretic, Hexen)"), ("type", "bool"),
-            ("description", "For a demo that was recorded with -respawn but whose header"
+                " needs nothing."))]),
+        collections.OrderedDict([("name", "importRespawn"), ("display", text("import.respawn", "Monsters respawn (Doom 1.0-1.2, Heretic, Hexen)")), ("type", "bool"),
+            ("description", text("import.respawn.about", "For a demo that was recorded with -respawn but whose header"
                 " does not say so. Demos of Doom 1.0 to 1.2 hold no monster "
                 "flags, and Heretic and Hexen demos hold them only when "
                 "DSDA-Doom recorded them. A later Doom demo format holds its"
-                " own flags.")]),
-        collections.OrderedDict([("name", "importFast"), ("display", "Fast monsters (Doom 1.0-1.2, Heretic, Hexen)"), ("type", "bool"),
-            ("description", "For a demo that was recorded with -fast. The headers of "
+                " own flags."))]),
+        collections.OrderedDict([("name", "importFast"), ("display", text("import.fast", "Fast monsters (Doom 1.0-1.2, Heretic, Hexen)")), ("type", "bool"),
+            ("description", text("import.fast.about", "For a demo that was recorded with -fast. The headers of "
                 "Doom 1.0 to 1.2, Heretic and Hexen demos do not hold this. "
-                "A later Doom demo format holds its own flag.")]),
-        collections.OrderedDict([("name", "importNomonsters"), ("display", "No monsters (Doom 1.0-1.2, Heretic, Hexen)"), ("type", "bool"),
-            ("description", "For a demo that was recorded with -nomonsters but whose "
+                "A later Doom demo format holds its own flag."))]),
+        collections.OrderedDict([("name", "importNomonsters"), ("display", text("import.nomonsters", "No monsters (Doom 1.0-1.2, Heretic, Hexen)")), ("type", "bool"),
+            ("description", text("import.nomonsters.about", "For a demo that was recorded with -nomonsters but whose "
                 "header does not say so. Demos of Doom 1.0 to 1.2 hold no "
                 "monster flags, and Heretic and Hexen demos hold them only "
                 "when DSDA-Doom recorded them. A later Doom demo format "
-                "holds its own flags.")]),
+                "holds its own flags."))]),
     ]),
 ])
 
@@ -409,10 +433,10 @@ def declaration():
     for g, label, _ in GAMES:
         iwad = IWAD[g][0]
         name = iwad.upper() if g not in ("freedoom1", "freedoom2") else iwad
-        e = collections.OrderedDict([("id", iwad), ("display", "%s IWAD" % label),
-            ("description", "%s is the game. Any release of it can be used, and so can a modified IWAD. You have to "
-             "supply it. The package contains none of the game's data. The project records exactly which file "
-             "it was, and the compatibility level decides which release's rules the game follows." % name)])
+        e = collections.OrderedDict([("id", iwad), ("display", text("firmware.iwad", "%1 IWAD", label)),
+            ("description", text("firmware.iwad.about", "%1 is the game. Any release of it can be used, and so can a modified "
+             "IWAD. You have to supply it. The package contains none of the game's data. The project records exactly "
+             "which file it was, and the compatibility level decides which release's rules the game follows.", name))])
         e["name"] = name
         e["requiredWhen"] = {"setting": "game", "is": g}
         fw.append(e)
@@ -471,10 +495,10 @@ SLOTS = collections.OrderedDict([
         "are listed here, in the order the engine loads them (-file first, "
         "then -deh)."),
     ("slots", [collections.OrderedDict([
-        ("id", "pwad"), ("title", "PWADs and patches"), ("min", 0), ("max", -1), ("formats", ["wad", "deh", "bex"]),
-        ("help", "The WADs (.wad) and DeHackEd patches (.deh, .bex) of the mod, "
+        ("id", "pwad"), ("title", text("slot.pwad", "PWADs and patches")), ("min", 0), ("max", -1), ("formats", ["wad", "deh", "bex"]),
+        ("help", text("slot.pwad.help", "The WADs (.wad) and DeHackEd patches (.deh, .bex) of the mod, "
             "in the order they are loaded. Where two WADs hold the same "
-            "lump, the later one wins. Give none to play the game itself.")])]),
+            "lump, the later one wins. Give none to play the game itself."))])]),
 ])
 
 
@@ -525,14 +549,16 @@ def main():
         "dsda-games.h": games_header(),
         "dsda-options.h": options_header(),
     }
+    outputs["languages/en.json"] = texts_table()
     stale = []
-    for name, text in outputs.items():
+    for name, content in outputs.items():
         path = os.path.join(HERE, name)
-        old = open(path).read() if os.path.exists(path) else None
-        if old != text:
+        old = open(path, encoding="utf-8").read() if os.path.exists(path) else None
+        if old != content:
             stale.append(name)
             if "--check" not in sys.argv:
-                open(path, "w").write(text)
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                open(path, "w", encoding="utf-8").write(content)
     if "--check" in sys.argv:
         if stale: print("out of date: " + ", ".join(stale)); sys.exit(1)
         print("the declaration is up to date")

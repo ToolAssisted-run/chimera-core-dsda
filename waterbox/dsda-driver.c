@@ -61,6 +61,11 @@
 
 #include "dsda-games.h"
 
+/* A text a person reads is a key of languages/en.json, each of its
+ * arguments after a TEXT_ARG (chimera docs/translations.md). TEXT_ARG is a
+ * string of its own so the byte after it is never read as more of its hex. */
+#define TEXT_ARG "\x1f"
+
 /* ------------------------------------------------------------ the settings */
 
 struct dsda_settings
@@ -255,7 +260,7 @@ void chimera_error_message(const char *msg)
 void chimera_exit(int rc)
 {
 	if (!g.halt_reason[0])
-		snprintf(g.halt_reason, sizeof g.halt_reason, rc ? "the engine stopped (%d)" : "the engine quit", rc);
+		snprintf(g.halt_reason, sizeof g.halt_reason, rc ? "error.engine_stopped" TEXT_ARG "%d" : "error.engine_quit", rc);
 	fprintf(stderr, "dsda: halted: %s\n", g.halt_reason);
 	g.halted = 1;
 	if (g.halt_jump_set) longjmp(g.halt_jump, 1);
@@ -441,7 +446,7 @@ int dsdadrv_init(char *err, int errsize)
 		if (!strcmp(k_games[i].id, g.s.game)) g.game = &k_games[i];
 	if (!g.game)
 	{
-		snprintf(err, (size_t)errsize, "the setting game is \"%s\", which is none of the games the core knows", g.s.game);
+		snprintf(err, (size_t)errsize, "error.setting_game_is_none" TEXT_ARG "%s", g.s.game);
 		return 0;
 	}
 	g.ctl = dsda_controller(g.game->format);
@@ -450,7 +455,7 @@ int dsdadrv_init(char *err, int errsize)
 	/* the refusals BizHawk's frontend makes */
 	if (!present_count())
 	{
-		snprintf(err, (size_t)errsize, "no player is present: player1Present .. player4Present");
+		snprintf(err, (size_t)errsize, "error.no_player_present");
 		return 0;
 	}
 	if (g.s.display_player < 1 || g.s.display_player > 4 || !g.s.player_present[g.s.display_player - 1])
@@ -460,14 +465,14 @@ int dsdadrv_init(char *err, int errsize)
 	}
 	if (g.s.scale_factor < 1 || g.s.scale_factor > 12)
 	{
-		snprintf(err, (size_t)errsize, "the setting scaleFactor is %d; it goes from 1 to 12", g.s.scale_factor);
+		snprintf(err, (size_t)errsize, "error.scale_factor_range" TEXT_ARG "%d", g.s.scale_factor);
 		return 0;
 	}
 	/* a demo's option block is its complevel's: Boom, MBF and PrBoom's 64 bytes,
 	 * MBF21's 21 and its comp flags (their count the 21st byte) */
 	if (g.s.demo_options_len < 0)
 	{
-		snprintf(err, (size_t)errsize, "the setting demoOptions is not hex (two digits a byte)");
+		snprintf(err, (size_t)errsize, "error.demo_options_not_hex");
 		return 0;
 	}
 	if (g.s.demo_options_len > 0)
@@ -475,13 +480,13 @@ int dsdadrv_init(char *err, int errsize)
 		const int n = g.s.demo_options_len;
 		if (g.s.complevel < 7)
 		{
-			snprintf(err, (size_t)errsize, "the setting demoOptions is a Boom-or-later demo's option block; complevel %d has none", g.s.complevel);
+			snprintf(err, (size_t)errsize, "error.demo_options_complevel_has_none" TEXT_ARG "%d", g.s.complevel);
 			return 0;
 		}
 		if (g.s.complevel == 21 ? (n < 21 || g.s.demo_options[20] > 25 || n != 21 + g.s.demo_options[20]) : n != 64)
 		{
-			snprintf(err, (size_t)errsize, "the setting demoOptions is %d bytes; complevel %d's option block is %s", n, g.s.complevel,
-				g.s.complevel == 21 ? "21 and its comp flags (at most 46)" : "64");
+			snprintf(err, (size_t)errsize, "error.demo_options_size" TEXT_ARG "%d" TEXT_ARG "%d" TEXT_ARG "%s", n, g.s.complevel,
+				g.s.complevel == 21 ? "error.demo_options_size.mbf21" : "64");
 			return 0;
 		}
 	}
@@ -505,7 +510,7 @@ int dsdadrv_init(char *err, int errsize)
 		g.video_h = h * mult;
 		if (g.video_w > DSDA_VIDEO_MAX_W || g.video_h > DSDA_VIDEO_MAX_H)
 		{
-			snprintf(err, (size_t)errsize, "scaleFactor %d at %s is %dx%d, larger than the core's %dx%d",
+			snprintf(err, (size_t)errsize, "error.scale_factor_too_large" TEXT_ARG "%d" TEXT_ARG "%s" TEXT_ARG "%d" TEXT_ARG "%d" TEXT_ARG "%d" TEXT_ARG "%d",
 				g.s.scale_factor, k_aspects[a], g.video_w, g.video_h, DSDA_VIDEO_MAX_W, DSDA_VIDEO_MAX_H);
 			return 0;
 		}
@@ -521,7 +526,7 @@ int dsdadrv_init(char *err, int errsize)
 	FILE *f = fopen(g.game->iwad, "rb");
 	if (!f)
 	{
-		snprintf(err, (size_t)errsize, "%s needs its IWAD, %s (firmware), which is not there", g.game->id, g.game->iwad);
+		snprintf(err, (size_t)errsize, "error.needs_its_iwad" TEXT_ARG "%s" TEXT_ARG "%s", g.game->id, g.game->iwad);
 		return 0;
 	}
 	fclose(f);

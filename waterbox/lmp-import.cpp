@@ -43,6 +43,11 @@ extern "C" {
 }
 #include "dsda-options.h"
 
+/* A text a person reads is a key of languages/en.json, each of its
+ * arguments after a TEXT_ARG (chimera docs/translations.md). TEXT_ARG is a
+ * string of its own so the byte after it is never read as more of its hex. */
+#define TEXT_ARG "\x1f"
+
 namespace
 {
 
@@ -132,7 +137,7 @@ struct Demo
 
 void need(size_t size, size_t at, size_t n, const char *what)
 {
-	if (at + n > size) refuse("the demo ends inside its %s", what);
+	if (at + n > size) refuse("error.demo.ends_inside" TEXT_ARG "%s", what);
 }
 
 std::string guess_versionless_family(const uint8_t *data, size_t size, size_t start)
@@ -156,8 +161,8 @@ std::string guess_versionless_family(const uint8_t *data, size_t size, size_t st
 		if (q < size && data[q] == DEMOMARKER) fits.push_back(c.family);
 	}
 	if (fits.size() == 1) return fits[0];
-	refuse("its header has no version byte, and it could be %s: say the game (its IWAD, or its release)",
-		fits.empty() ? "none of Doom 1.2, Heretic or Hexen" : join(fits, " or ").c_str());
+	if (fits.empty()) refuse("error.demo.no_version_byte_none");
+	refuse("error.demo.no_version_byte" TEXT_ARG "%s", join(fits, ", ").c_str());
 }
 
 std::map<std::string, std::string> read_footer(const uint8_t *data, size_t size, size_t p)
@@ -237,20 +242,20 @@ Demo parse_demo(const uint8_t *data, size_t size, const std::string &family_hint
 {
 	Demo d;
 	size_t p = 0;
-	need(size, p, 1, "header");
+	need(size, p, 1, "error.demo.part.header");
 	int ver = data[p++];
 
 	if (ver == 255)
 	{
 		/* dsda's header, or PrBoom+um's UMAPINFO one, before the real one */
-		need(size, p, 7, "extended header");
+		need(size, p, 7, "error.demo.part.extended_header");
 		if (data[p] == 0x1D && !memcmp(data + p + 1, "DSDA", 4) && data[p + 5] == 0xE6)
 		{
 			const int dsda_version = data[p + 6];
 			p += 7;
-			if (dsda_version > 3) refuse("its DSDA header is version %d, newer than dsda-doom 0.30's (3)", dsda_version);
+			if (dsda_version > 3) refuse("error.demo.dsda_header_newer" TEXT_ARG "%d", dsda_version);
 			const size_t hsize = dsda_version == 1 ? 8 : dsda_version == 2 ? 9 : dsda_version == 3 ? 10 : 0;
-			need(size, p, hsize, "DSDA header");
+			need(size, p, hsize, "error.demo.part.dsda_header");
 			const int flags = dsda_version >= 2 ? data[p + 8] : 0;
 			p += hsize;
 			d.excmd = true;
@@ -261,21 +266,21 @@ Demo parse_demo(const uint8_t *data, size_t size, const std::string &family_hint
 		else if (size >= p + 5 && !memcmp(data + p, "PR+UM", 5))
 		{
 			p += 6;
-			need(size, p, 1 + 2 + 1 + 8 + 8, "UMAPINFO header");
+			need(size, p, 1 + 2 + 1 + 8 + 8, "error.demo.part.umapinfo_header");
 			if (data[p] != 1 || data[p + 1] != 1 || data[p + 2] != 0 || data[p + 3] != 8 || memcmp(data + p + 4, "UMAPINFO", 8))
-				refuse("its PrBoom+um extended header is not the one dsda-doom knows");
+				refuse("error.demo.umapinfo_header_unknown");
 			p += 4 + 8 + 8;
 			d.umapinfo = true;
 			d.format = "PrBoom+um UMAPINFO, ";
 		}
 		else
-			refuse("its extended header (version byte 255) is neither dsda's nor PrBoom+um's");
-		need(size, p, 1, "header");
+			refuse("error.demo.extended_header_unknown");
+		need(size, p, 1, "error.demo.part.header");
 		ver = data[p++];
 	}
 
 	if (!((ver >= 0 && ver <= 4) || (ver >= 104 && ver <= 111) || (ver >= 200 && ver <= 214) || ver == 221))
-		refuse("its version byte %d is no demo format dsda-doom knows", ver);
+		refuse("error.demo.version_unknown" TEXT_ARG "%d", ver);
 
 	if (ver >= 100 && ver < 200)
 	{
@@ -283,7 +288,7 @@ Demo parse_demo(const uint8_t *data, size_t size, const std::string &family_hint
 		d.version = ver;
 		d.longtics = ver >= 111;
 		d.tasdoom = ver == 110;
-		need(size, p, 12, "header");
+		need(size, p, 12, "error.demo.part.header");
 		d.skill = data[p];
 		d.episode = data[p + 1];
 		d.map = data[p + 2];
@@ -303,7 +308,7 @@ Demo parse_demo(const uint8_t *data, size_t size, const std::string &family_hint
 		const std::string family = family_hint.empty() ? guess_versionless_family(data, size, p - 1) : family_hint;
 		d.family = family;
 		d.skill = ver;
-		need(size, p, 2, "header");
+		need(size, p, 2, "error.demo.part.header");
 		d.episode = data[p];
 		d.map = data[p + 1];
 		p += 2;
@@ -312,7 +317,7 @@ Demo parse_demo(const uint8_t *data, size_t size, const std::string &family_hint
 		int bits;
 		if (family == "hexen")
 		{
-			need(size, p, 16, "header");
+			need(size, p, 16, "error.demo.part.header");
 			for (int i = 0; i < 8; i++)
 			{
 				ingame.push_back(data[p + 2 * i] != 0);
@@ -323,7 +328,7 @@ Demo parse_demo(const uint8_t *data, size_t size, const std::string &family_hint
 		}
 		else
 		{
-			need(size, p, 4, "header");
+			need(size, p, 4, "error.demo.part.header");
 			for (int i = 0; i < 4; i++)
 			{
 				ingame.push_back(data[p + i] != 0);
@@ -335,7 +340,7 @@ Demo parse_demo(const uint8_t *data, size_t size, const std::string &family_hint
 		std::vector<std::string> extra;
 		for (size_t i = 4; i < ingame.size(); i++)
 			if (ingame[i]) extra.push_back(std::to_string(i + 1));
-		if (!extra.empty()) refuse("players %s are in the game; the core has four", join(extra, ", ").c_str());
+		if (!extra.empty()) refuse("error.demo.more_than_four_players" TEXT_ARG "%s", join(extra, ", ").c_str());
 		for (int i = 0; i < 4; i++)
 		{
 			d.players[i] = ingame[i];
@@ -344,7 +349,7 @@ Demo parse_demo(const uint8_t *data, size_t size, const std::string &family_hint
 		if (family == "doom")
 		{
 			d.complevel = 0;
-			d.format += "Doom 1.2 (or earlier)";
+			d.format += "Doom 1.0-1.2";
 		}
 		else
 		{
@@ -360,11 +365,11 @@ Demo parse_demo(const uint8_t *data, size_t size, const std::string &family_hint
 		/* Boom and later: a signature, then the header, then the options */
 		d.version = ver;
 		const size_t sig_at = p;
-		need(size, p, 6, "signature");
+		need(size, p, 6, "error.demo.part.signature");
 		p += 6;
 		if (ver >= 200 && ver <= 202)
 		{
-			need(size, p, 1, "header");
+			need(size, p, 1, "error.demo.part.header");
 			const int compat = data[p++];
 			d.complevel = compat ? 7 : ver == 202 ? 9 : 8;
 			d.format += "Boom 2.0" + std::to_string(ver - 200);
@@ -383,7 +388,7 @@ Demo parse_demo(const uint8_t *data, size_t size, const std::string &family_hint
 				d.format += "MBF";
 			}
 			else
-				refuse("its version 203 signature is neither LxDoom's nor MBF's");
+				refuse("error.demo.signature_203_unknown");
 		}
 		else if (ver >= 210 && ver <= 214)
 		{
@@ -398,7 +403,7 @@ Demo parse_demo(const uint8_t *data, size_t size, const std::string &family_hint
 			d.longtics = true;
 			d.format += "MBF21";
 		}
-		need(size, p, 5, "header");
+		need(size, p, 5, "error.demo.part.header");
 		d.skill = data[p];
 		d.episode = data[p + 1];
 		d.map = data[p + 2];
@@ -408,15 +413,15 @@ Demo parse_demo(const uint8_t *data, size_t size, const std::string &family_hint
 		size_t osize;
 		if (d.complevel == 21)
 		{
-			need(size, p, 21, "options");
+			need(size, p, 21, "error.demo.part.options");
 			const int count = data[p + 20];
-			if (count > 25) refuse("its MBF21 options name %d comp flags; dsda-doom 0.30 knows 25", count);
+			if (count > 25) refuse("error.demo.mbf21_comp_flags" TEXT_ARG "%d", count);
 			osize = 21 + (size_t)count;
 			d.mbf21_options = true;
 		}
 		else
 			osize = MBF_GAME_OPTION_SIZE;
-		need(size, p, osize, "options");
+		need(size, p, osize, "error.demo.part.options");
 		d.options.assign(data + p, data + p + osize);
 		/* where its monster flags and its seed are */
 		const size_t r_at = d.mbf21_options ? 3 : 6, seed_at = d.mbf21_options ? 6 : 10;
@@ -428,17 +433,17 @@ Demo parse_demo(const uint8_t *data, size_t size, const std::string &family_hint
 			(uint32_t)d.options[seed_at + 2] << 8 | d.options[seed_at + 3];
 		p += osize;
 		if (ver == 200) p += 256 - MBF_GAME_OPTION_SIZE;   /* killough: 2.00 kept 256 bytes of options */
-		need(size, p, 32, "players");
+		need(size, p, 32, "error.demo.part.players");
 		std::vector<std::string> extra;
 		for (int i = 4; i < 32; i++)
 			if (data[p + i]) extra.push_back(std::to_string(i + 1));
-		if (!extra.empty()) refuse("players %s are in the game; the core has four", join(extra, ", ").c_str());
+		if (!extra.empty()) refuse("error.demo.more_than_four_players" TEXT_ARG "%s", join(extra, ", ").c_str());
 		for (int i = 0; i < 4; i++) d.players[i] = data[p + i] != 0;
 		p += 32;
 	}
 
-	if (!d.players[0] && !d.players[1] && !d.players[2] && !d.players[3]) refuse("no player is in the game");
-	if (d.from_keyframe) refuse("it starts from a key frame (a saved game inside the demo); a movie starts with the game");
+	if (!d.players[0] && !d.players[1] && !d.players[2] && !d.players[3]) refuse("error.demo.no_player");
+	if (d.from_keyframe) refuse("error.demo.key_frame");
 
 	/* the tics, to the end marker - or, as dsda's playback ends too
 	 * (dsda_EndOfPlaybackStream), where a whole tic no longer fits */
@@ -463,7 +468,7 @@ Demo parse_demo(const uint8_t *data, size_t size, const std::string &family_hint
 			Tic t;
 			if (d.tasdoom)
 			{
-				need(size, p, 4, "tics");
+				need(size, p, 4, "error.demo.part.tics");
 				t.buttons = data[p];
 				t.fwd = s8(data[p + 1]);
 				t.side = s8(data[p + 2]);
@@ -472,7 +477,7 @@ Demo parse_demo(const uint8_t *data, size_t size, const std::string &family_hint
 			}
 			else
 			{
-				need(size, p, d.longtics ? 5 : 4, "tics");
+				need(size, p, d.longtics ? 5 : 4, "error.demo.part.tics");
 				t.fwd = s8(data[p]);
 				t.side = s8(data[p + 1]);
 				p += 2;
@@ -488,21 +493,21 @@ Demo parse_demo(const uint8_t *data, size_t size, const std::string &family_hint
 			}
 			if (d.family != "doom")
 			{
-				need(size, p, 2, "tics");
+				need(size, p, 2, "error.demo.part.tics");
 				t.lookfly = data[p];
 				t.arti = data[p + 1];
 				p += 2;
 			}
 			if (d.excmd)
 			{
-				need(size, p, 1, "tics");
+				need(size, p, 1, "error.demo.part.tics");
 				t.has_ex = true;
 				t.ex = data[p++];
 				if (t.ex & (XC_SAVE | XC_LOAD))
-					refuse("tic %zu saves or loads a game (dsda's casual extended commands); a movie cannot", d.tics.size());
+					refuse("error.demo.saves_or_loads" TEXT_ARG "%zu", d.tics.size());
 				if (t.ex & XC_LOOK)
 				{
-					need(size, p, 2, "tics");
+					need(size, p, 2, "error.demo.part.tics");
 					t.look = (int16_t)(data[p] | data[p + 1] << 8);
 					p += 2;
 				}
@@ -622,7 +627,7 @@ std::string option_leading(const char *const *options, const char *display, int 
 		long v = strtol(options[i], &end, 10);
 		if (end != options[i] && v == leading && (*end == 0 || !isalnum((unsigned char)*end))) return options[i];
 	}
-	refuse("the core has no %s %d", display, leading);
+	refuse("error.demo.no_option" TEXT_ARG "%s" TEXT_ARG "%d", display, leading);
 }
 
 bool declared(const std::string &name)
@@ -809,7 +814,7 @@ std::string input_log(const Demo &demo, int format, const struct dsda_activity &
 				const int look = t.lookfly & 15, fly = t.lookfly >> 4;
 				axes[P + "Look"] = look > 8 ? look - 16 : look;
 				axes[P + "Fly"] = fly > 8 ? fly - 16 : fly;
-				if (!hexen && (t.arti & ~AFLAG_MASK)) refuse("tic %zu: Heretic's artifact byte %d has Hexen's flags", ticno, t.arti);
+				if (!hexen && (t.arti & ~AFLAG_MASK)) refuse("error.demo.heretic_artifact_flags" TEXT_ARG "%zu" TEXT_ARG "%d", ticno, t.arti);
 				axes[P + "Artifact"] = t.arti & AFLAG_MASK;
 				if (hexen)
 				{
@@ -821,7 +826,7 @@ std::string input_log(const Demo &demo, int format, const struct dsda_activity &
 			{
 				if (t.ex & XC_JUMP)
 				{
-					if (hexen) refuse("tic %zu: an extended jump in Hexen, which jumps with its artifact flag", ticno);
+					if (hexen) refuse("error.demo.hexen_extended_jump" TEXT_ARG "%zu", ticno);
 					buttons[P + "Jump"] = true;
 				}
 				if (t.ex & XC_LOOK) axes[P + "Free Look"] = t.look;
@@ -839,7 +844,7 @@ std::string input_log(const Demo &demo, int format, const struct dsda_activity &
 					auto v = axes.find(c.name);
 					const int value = v == axes.end() ? c.axis->neutral : v->second;
 					if (value < c.axis->min || value > c.axis->max)
-						refuse("tic %zu: %s is %d, past the core's %d..%d", ticno, c.name.c_str(), value, (int)c.axis->min, (int)c.axis->max);
+						refuse("error.demo.axis_out_of_range" TEXT_ARG "%zu" TEXT_ARG "%s" TEXT_ARG "%d" TEXT_ARG "%d" TEXT_ARG "%d", ticno, c.name.c_str(), value, (int)c.axis->min, (int)c.axis->max);
 					snprintf(num, sizeof num, "%5d,", value);
 					line += num;
 				}
@@ -852,10 +857,10 @@ std::string input_log(const Demo &demo, int format, const struct dsda_activity &
 		/* every value the tic set must have a column, or the movie loses it */
 		for (auto &v : axes)
 			if (v.second && !active.count(v.first))
-				refuse("tic %zu: %s is %d, and the core's controller has no such input active", ticno, v.first.c_str(), v.second);
+				refuse("error.demo.axis_not_active" TEXT_ARG "%zu" TEXT_ARG "%s" TEXT_ARG "%d", ticno, v.first.c_str(), v.second);
 		for (auto &v : buttons)
 			if (!active.count(v.first))
-				refuse("tic %zu: %s is pressed, and the core's controller has no such input active", ticno, v.first.c_str());
+				refuse("error.demo.button_not_active" TEXT_ARG "%zu" TEXT_ARG "%s", ticno, v.first.c_str());
 	}
 	*frames = (long)demo.tics.size();
 	return out + "[/Input]\n";
@@ -917,7 +922,7 @@ int hexen_warp(int gamemap, const std::vector<std::pair<const unsigned char *, s
 		std::string lump;
 		if (wad_lump(w.first, w.second, "MAPINFO", &lump)) text = lump, have = true;
 	}
-	if (!have) refuse("no MAPINFO in the IWAD or the PWADs: Hexen's maps are reached by their warp numbers");
+	if (!have) refuse("error.demo.no_mapinfo");
 	/* comments (';' to the line's end) out, then words and quoted strings */
 	std::string clean;
 	bool comment = false;
@@ -965,13 +970,13 @@ int hexen_warp(int gamemap, const std::vector<std::pair<const unsigned char *, s
 		}
 		i++;
 	}
-	if (!trans.count(gamemap)) refuse("MAPINFO has no map %d", gamemap);
+	if (!trans.count(gamemap)) refuse("error.demo.mapinfo_no_map" TEXT_ARG "%d", gamemap);
 	const int warp = trans[gamemap];
 	int first = -1;
 	for (int m = 1; m < 99; m++)
 		if (trans.count(m) && trans[m] == warp) { first = m; break; }
 	if (first != gamemap)
-		refuse("Hexen's -warp %d goes to map %d, not the demo's %d: the core starts a game by its warp number", warp, first, gamemap);
+		refuse("error.demo.hexen_warp" TEXT_ARG "%d" TEXT_ARG "%d" TEXT_ARG "%d", warp, first, gamemap);
 	return warp;
 }
 
@@ -1054,10 +1059,10 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 	}
 	/* the demo first: its own refusals do not depend on the IWAD */
 	Demo demo = parse_demo(data, size, game.empty() ? std::string() : family_of(game_by_id(game)), o->longtics);
-	if (o->iwad && !iwad) refuse("%s cannot be read", o->iwad);
-	if (o->iwad && game.empty()) refuse("%s is the IWAD of none of the games the core plays: its name and its lumps say none", o->iwad);
+	if (o->iwad && !iwad) refuse("error.demo.cannot_be_read" TEXT_ARG "%s", o->iwad);
+	if (o->iwad && game.empty()) refuse("error.demo.iwad_of_no_game" TEXT_ARG "%s", o->iwad);
 	if (o->longtics && demo.family == "doom")
-		refuse("longtics are for Heretic and Hexen demos; a Doom demo's format says its turning");
+		refuse("error.demo.longtics_doom");
 	const Footer f = footer_values(demo.footer_args, demo.footer_text);
 	if (!iwad && !f.iwad.empty())
 	{
@@ -1066,19 +1071,19 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 		{
 			iwad_name = f.iwad;
 			game = game_of_iwad(iwad, iwad_size, iwad_name, &iwad_label);
-			if (game.empty()) refuse("its footer's IWAD, %s, is the IWAD of none of the games the core plays", f.iwad.c_str());
+			if (game.empty()) refuse("error.demo.footer_iwad_of_no_game" TEXT_ARG "%s", f.iwad.c_str());
 		}
 	}
+	if (!iwad && f.iwad.empty()) refuse("error.demo.which_iwad");
 	if (!iwad)
-		refuse("the demo does not say which IWAD it is for%s: give its IWAD",
-			f.iwad.empty() ? "" : (" beyond its footer's name, " + f.iwad + ", which is " + (o->missing_hint ? o->missing_hint : "not at hand")).c_str());
+		refuse("error.demo.which_iwad_footer" TEXT_ARG "%s" TEXT_ARG "%s", f.iwad.c_str(), o->missing_hint ? o->missing_hint : "error.demo.not_at_hand");
 	const struct dsda_game *gm = game_by_id(game);
 	const std::string family = family_of(gm);
 	if (family != demo.family)
 	{
 		std::string fam = demo.family;
 		fam[0] = (char)toupper((unsigned char)fam[0]);
-		refuse("it is a %s demo, and %s is %s's IWAD", fam.c_str(), basename_of(iwad_name).c_str(), game.c_str());
+		refuse("error.demo.other_game_iwad" TEXT_ARG "%s" TEXT_ARG "%s" TEXT_ARG "%s", fam.c_str(), basename_of(iwad_name).c_str(), game.c_str());
 	}
 	std::string e4;
 	const bool retail = wad_lump(iwad, iwad_size, "E4M1", &e4);
@@ -1086,8 +1091,8 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 	Settings &s = r.settings;
 	set(s, "game", Value::of(game));
 	if (family == "doom")
-		set(s, "compatibilityLevel", Value::of(option_leading(k_options_compatibilityLevel, "Compatibility Level", complevel_of(demo, game, retail, f))));
-	if (demo.skill > 4) refuse("its skill %d is past Nightmare (4)", demo.skill);
+		set(s, "compatibilityLevel", Value::of(option_leading(k_options_compatibilityLevel, "setting.compatibilitylevel", complevel_of(demo, game, retail, f))));
+	if (demo.skill > 4) refuse("error.demo.skill_past_nightmare" TEXT_ARG "%d", demo.skill);
 	set(s, "skillLevel", Value::of(k_options_skillLevel[demo.skill]));
 	set(s, "initialEpisode", Value::of(demo.episode));
 	set(s, "initialMap", Value::of(demo.map));
@@ -1112,7 +1117,7 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 		fast = has_flag("-fast");
 		nomonsters = has_flag("-nomonsters") || (demo.raven_bits & DEMOHEADER_NOMONSTERS);
 		if (family == "doom" && !has_flag("-respawn") && !has_flag("-fast") && !has_flag("-nomonsters"))
-			r.notes.push_back("a 1.2 demo does not hold its monster flags: none assumed (respawn, fast, no monsters: say them)");
+			r.notes.push_back("note.no_monster_flags");
 	}
 	set(s, "monstersRespawn", Value::of(respawn));
 	set(s, "fastMonsters", Value::of(fast));
@@ -1122,7 +1127,7 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 		set(s, "player" + std::to_string(i + 1) + "Present", Value::of(demo.players[i]));
 		if (family == "hexen")
 		{
-			if (demo.classes[i] > 2) refuse("player %d's class is %d; Hexen's are 0-2", i + 1, demo.classes[i]);
+			if (demo.classes[i] > 2) refuse("error.demo.hexen_class" TEXT_ARG "%d" TEXT_ARG "%d", i + 1, demo.classes[i]);
 			set(s, "player" + std::to_string(i + 1) + "Class", Value::of(k_options_playerClass[demo.classes[i]]));
 		}
 	}
@@ -1167,7 +1172,7 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 	set(s, "emulatePrBoom", Value::of(f.has_emulate ? f.emulate : std::string()));
 	set(s, "extendedCommands", Value::of(k_options_extendedCommands[(demo.excmd ? 1 : 0) + (demo.casual ? 1 : 0)]));
 	for (auto &kv : s)
-		if (!declared(kv.first)) refuse("the core declares no setting %s", kv.first.c_str());
+		if (!declared(kv.first)) refuse("error.demo.no_setting" TEXT_ARG "%s", kv.first.c_str());
 
 	/* the firmware: the game's IWAD, the file given (its own hash) */
 	r.firmware_id = gm->iwad;
@@ -1181,7 +1186,7 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 		{
 			std::vector<std::string> all = f.files;
 			all.insert(all.end(), f.deh.begin(), f.deh.end());
-			r.notes.push_back("its footer names " + join(all, ", ") + "; none taken (no PWADs)");
+			r.notes.push_back(std::string("note.footer_files_not_taken" TEXT_ARG) + join(all, ", "));
 		}
 	}
 	else if (o->pwads)
@@ -1211,12 +1216,12 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 			std::string found;
 			const unsigned char *b = rd.read(n, &sz, &found);
 			if (!b)
-				refuse("its footer names %s, which is %s", n.c_str(), o->missing_hint ? o->missing_hint : "not at hand");
+				refuse("error.demo.footer_file_missing" TEXT_ARG "%s" TEXT_ARG "%s", n.c_str(), o->missing_hint ? o->missing_hint : "error.demo.not_at_hand");
 			r.files.emplace_back(basename_of(found), sha1_hex(b, sz));
 			if (list == &wads) wad_bytes.emplace_back(b, sz);
 		}
 	if (r.files.empty() && (!f.files.empty() || !f.deh.empty()) && !o->pwads && !o->no_pwads)
-		r.notes.push_back("its footer names no PWAD the core needs");
+		r.notes.push_back("note.footer_no_pwad_needed");
 
 	if (game == "hexen")
 	{
@@ -1226,10 +1231,10 @@ Result import(const unsigned char *data, size_t size, const struct lmpi_options 
 		all.insert(all.end(), wad_bytes.begin(), wad_bytes.end());
 		const int warp = hexen_warp(demo.map, all);
 		set(s, "initialMap", Value::of(warp));
-		if (warp != demo.map) r.notes.push_back("Hexen's map " + std::to_string(demo.map) + " is warp " + std::to_string(warp));
+		if (warp != demo.map) r.notes.push_back(std::string("note.hexen_map_warp" TEXT_ARG) + std::to_string(demo.map) + TEXT_ARG + std::to_string(warp));
 	}
 
-	if (demo.truncated) r.notes.push_back("it has no end marker: its tics run to the file's end, as dsda plays them");
+	if (demo.truncated) r.notes.push_back("note.no_end_marker");
 
 	struct dsda_activity a;
 	for (int i = 0; i < 4; i++) a.present[i] = demo.players[i];
@@ -1331,7 +1336,7 @@ extern "C" char *lmpi_import(const unsigned char *demo, size_t size, const struc
 		char *out = (char *)malloc(json.size() + 1);
 		if (!out)
 		{
-			snprintf(err, errsize, "out of memory");
+			snprintf(err, errsize, "error.out_of_memory");
 			return nullptr;
 		}
 		memcpy(out, json.c_str(), json.size() + 1);

@@ -14,34 +14,34 @@ const char *dsdadrv_game_properties(void)
 	P("    { \"name\": \"%s\", \"domain\": \"Game State\", \"offset\": %d, \"type\": \"%s\", \"group\": \"%s\", \"writable\": false, \"description\": \"%s\" },\n", \
 		name, (int)offsetof(struct game_state, field), type, group, desc)
 	P("{\n  \"properties\": [\n");
-	GS("Game.Tic", gametic, "s32", "Game", "The game's tic (gametic)");
-	GS("Game.Level Time", leveltime, "s32", "Game", "Tics on this level (leveltime)");
+	GS("Game.Tic", gametic, "s32", "Game", "property.game_tic");
+	GS("Game.Level Time", leveltime, "s32", "Game", "property.game_level_time");
 	P("    { \"name\": \"Game.State\", \"domain\": \"Game State\", \"offset\": %d, \"type\": \"s32\", \"group\": \"Game\", \"writable\": false, "
 	  "\"values\": { \"0\": \"Level\", \"1\": \"Intermission\", \"2\": \"Finale\", \"3\": \"Demo Screen\" }, \"description\": \"gamestate\" },\n",
 	  (int)offsetof(struct game_state, gamestate));
 	GS("Game.Episode", gameepisode, "s32", "Game", "gameepisode");
 	GS("Game.Map", gamemap, "s32", "Game", "gamemap");
-	GS("Game.Skill", gameskill, "s32", "Game", "gameskill (0: I'm too young to die .. 4: Nightmare!)");
+	GS("Game.Skill", gameskill, "s32", "Game", "property.game_skill");
 	GS("Game.Compatibility Level", complevel, "s32", "Game", "compatibility_level");
-	GS("Level.Things", things, "s32", "Level", "The things on the level (the Things domain's records)");
+	GS("Level.Things", things, "s32", "Level", "property.level_things");
 	GS("Level.Lines", lines, "s32", "Level", "numlines");
 	GS("Level.Sectors", sectors, "s32", "Level", "numsectors");
 	GS("Level.Total Kills", totalkills, "s32", "Level", "totalkills");
 	GS("Level.Total Items", totalitems, "s32", "Level", "totalitems");
 	GS("Level.Total Secrets", totalsecret, "s32", "Level", "totalsecret");
-	GS("Level.Exit Reached", level_exit, "bool", "Level", "The level's exit was reached this tic (with preventLevelExit, and not taken)");
-	GS("Level.Game End Reached", game_end, "bool", "Level", "The game's end was reached this tic");
-	GS("Machine.Halted", halted, "bool", "Machine", "The engine stopped on an error");
-	GS("Machine.Lag", lag, "bool", "Machine", "The last step was the screen melt's, the game waiting");
-	GS("Machine.Steps", steps, "u64", "Machine", "Steps since power-on: one tic each");
-	GS("RNG.Index", rng_index, "s32", "RNG", "rndindex: P_Random's, the game's (vanilla's table index)");
-	GS("RNG.Misc Index", prng_index, "s32", "RNG", "prndindex: M_Random's (pr_misc - the status bar's face, the menus; not the game's)");
+	GS("Level.Exit Reached", level_exit, "bool", "Level", "property.level_exit_reached");
+	GS("Level.Game End Reached", game_end, "bool", "Level", "property.level_game_end_reached");
+	GS("Machine.Halted", halted, "bool", "Machine", "property.machine_halted");
+	GS("Machine.Lag", lag, "bool", "Machine", "property.machine_lag");
+	GS("Machine.Steps", steps, "u64", "Machine", "property.machine_steps");
+	GS("RNG.Index", rng_index, "s32", "RNG", "property.rng_index");
+	GS("RNG.Misc Index", prng_index, "s32", "RNG", "property.rng_misc_index");
 	for (int i = 0; i < 4; i++)
 	{
 		static const struct { const char *name; size_t off; const char *type; const char *desc; } fields[] = {
-			{ "X", 0, "s32", "16.16 fixed point" }, { "Y", 4, "s32", "16.16 fixed point" }, { "Z", 8, "s32", "16.16 fixed point" },
-			{ "Angle", 12, "u32", "a full turn is 2^32" }, { "Momentum X", 16, "s32", "16.16 fixed point" },
-			{ "Momentum Y", 20, "s32", "16.16 fixed point" }, { "Momentum Z", 24, "s32", "16.16 fixed point" },
+			{ "X", 0, "s32", "property.fixed_point" }, { "Y", 4, "s32", "property.fixed_point" }, { "Z", 8, "s32", "property.fixed_point" },
+			{ "Angle", 12, "u32", "property.angle" }, { "Momentum X", 16, "s32", "property.fixed_point" },
+			{ "Momentum Y", 20, "s32", "property.fixed_point" }, { "Momentum Z", 24, "s32", "property.fixed_point" },
 		};
 		for (size_t f = 0; f < sizeof fields / sizeof fields[0]; f++)
 			P("    { \"name\": \"P%d.%s\", \"domain\": \"Game State\", \"offset\": %d, \"type\": \"%s\", \"group\": \"Player %d\", \"writable\": false, \"description\": \"%s\" },\n",
@@ -55,7 +55,7 @@ const char *dsdadrv_game_properties(void)
 			{ "Kills", offsetof(player_t, killcount), "killcount" },
 			{ "Items", offsetof(player_t, itemcount), "itemcount" },
 			{ "Secrets", offsetof(player_t, secretcount), "secretcount" },
-			{ "View Z", offsetof(player_t, viewz), "viewz, 16.16 fixed point" },
+			{ "View Z", offsetof(player_t, viewz), "property.view_z" },
 			{ "Refire", offsetof(player_t, refire), "refire" },
 			{ "Attack Down", offsetof(player_t, attackdown), "attackdown" },
 			{ "Use Down", offsetof(player_t, usedown), "usedown" },
@@ -67,7 +67,7 @@ const char *dsdadrv_game_properties(void)
 				i + 1, pfields[f].name, (int)(i * PAD_PLAYER + pfields[f].off), i + 1, pfields[f].desc);
 	}
 	P("    { \"name\": \"Ammo\", \"domain\": \"Players\", \"offset\": %d, \"type\": \"s32\", \"count\": %d, \"stride\": 4, \"group\": \"Player 1\", \"writable\": false, "
-	  "\"description\": \"Player 1's ammo, by type (am_clip, am_shell, am_cell, am_misl)\" }\n", (int)offsetof(player_t, ammo), NUMAMMO);
+	  "\"description\": \"property.ammo\" }\n", (int)offsetof(player_t, ammo), NUMAMMO);
 	P("  ]\n}\n");
 #undef GS
 #undef P
