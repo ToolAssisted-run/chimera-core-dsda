@@ -1287,6 +1287,52 @@ std::string parts_json(const Result &r)
 	return out;
 }
 
+/* the movie's text as a project file holds it (Chimera's since 2026-10-28):
+ * "inputs", the key's groups of columns in order - a group begins at each
+ * '#', a name ends at each '|' - and one entry a frame */
+std::string inputs_json(const std::string &input)
+{
+	std::vector<std::vector<std::string>> groups;
+	std::vector<std::string> entries;
+	for (size_t at = 0; at < input.size();)
+	{
+		size_t nl = input.find('\n', at);
+		if (nl == std::string::npos) nl = input.size();
+		const std::string line = input.substr(at, nl - at);
+		at = nl + 1;
+		if (line.compare(0, 7, "LogKey:") == 0)
+		{
+			const std::string key = line.substr(7);
+			for (size_t k = 0; k < key.size();)
+			{
+				if (key[k] == '#')
+				{
+					groups.emplace_back();
+					k++;
+					continue;
+				}
+				const size_t bar = key.find('|', k);
+				if (bar == std::string::npos || groups.empty()) break;
+				groups.back().push_back(key.substr(k, bar - k));
+				k = bar + 1;
+			}
+		}
+		else if (!line.empty() && line[0] == '|')
+			entries.push_back(line);
+	}
+	std::string out = "{\n    \"columns\": [";
+	for (size_t g = 0; g < groups.size(); g++)
+	{
+		out += std::string(g ? ", " : "") + "[";
+		for (size_t i = 0; i < groups[g].size(); i++) out += std::string(i ? ", " : "") + quote(groups[g][i]);
+		out += "]";
+	}
+	out += "],\n    \"entries\": [";
+	for (size_t i = 0; i < entries.size(); i++) out += std::string(i ? "," : "") + "\n      " + quote(entries[i]);
+	out += entries.empty() ? "]\n  }" : "\n    ]\n  }";
+	return out;
+}
+
 std::string project_json(const Result &r, const struct lmpi_project *p)
 {
 	std::string description = "Imported from " + std::string(p->source ? p->source : "a demo") + ": " + r.demo.format + ", " +
@@ -1303,7 +1349,7 @@ std::string project_json(const Result &r, const struct lmpi_project *p)
 	out += r.files.empty() ? "],\n" : "\n  ],\n";
 	out += "  \"settings\": " + json_settings(r.settings, "  ") + ",\n";
 	out += "  \"firmware\": [\n    {\n      \"id\": " + quote(r.firmware_id) + ",\n      \"sha1\": " + quote(r.firmware_sha1) + "\n    }\n  ],\n";
-	out += "  \"input\": " + quote(r.input) + ",\n";
+	out += "  \"inputs\": " + inputs_json(r.input) + ",\n";
 	out += "  \"markers\": [],\n  \"branches\": [],\n";
 	out += "  \"headers\": {\n    \"MovieVersion\": \"Chimera Tasproj v1.1\",\n    \"Platform\": \"Doom\",\n";
 	out += "    \"LastInputFrame\": " + quote(std::to_string(r.frames > 0 ? r.frames - 1 : 0)) + ",\n";

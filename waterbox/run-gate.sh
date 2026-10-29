@@ -467,6 +467,9 @@ echo "== declaration"
 if out="$(python3 "$here/gen-declaration.py" --check 2>&1)"; then pass "declaration: $out"; else fail "declaration: $out"; fi
 
 echo "== refusals"
+# a refusal's arguments follow its key, each after a unit separator (0x1F);
+# sh has no $'\x1f', so printf makes it
+us="$(printf '\037')"
 refuse() { # refuse <dir> <expected text> <what>
 	if out="$("$native" "$1" --frames 1 2>/dev/null)"; then
 		fail "refusals: $3 - Init succeeded"
@@ -479,19 +482,19 @@ refuse() { # refuse <dir> <expected text> <what>
 mkdir -p "$work/no-iwad"
 cp "$wad" "$work/no-iwad/"
 printf '{"game": "freedoom2"}' > "$work/no-iwad/settings"
-refuse "$work/no-iwad" "error.needs_its_iwad"$'\x1f'"freedoom2"$'\x1f'"freedoom2.wad" "no IWAD"
+refuse "$work/no-iwad" "error.needs_its_iwad${us}freedoom2${us}freedoom2.wad" "no IWAD"
 mkwork "$work/no-game" "$fd2" freedoom2.wad '{"game": "doom3"}'
-refuse "$work/no-game" "error.setting_game_is_none"$'\x1f'"doom3" "a game the core does not have"
+refuse "$work/no-game" "error.setting_game_is_none${us}doom3" "a game the core does not have"
 mkwork "$work/no-player" "$fd2" freedoom2.wad '{"game": "freedoom2", "player1Present": false}'
 refuse "$work/no-player" "error.no_player_present" "no player"
 mkwork "$work/scale13" "$fd2" freedoom2.wad '{"game": "freedoom2", "scaleFactor": 13}'
-refuse "$work/scale13" "error.scale_factor_range"$'\x1f'"13" "scaleFactor 13"
+refuse "$work/scale13" "error.scale_factor_range${us}13" "scaleFactor 13"
 mkwork "$work/opt-hex" "$fd2" freedoom2.wad '{"game": "freedoom2", "compatibilityLevel": "9", "demoOptions": "0g"}'
 refuse "$work/opt-hex" "error.demo_options_not_hex" "an option block that is not hex"
 mkwork "$work/opt-cl2" "$fd2" freedoom2.wad "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"2\", \"demoOptions\": \"$(printf '%0128d' 0)\"}"
-refuse "$work/opt-cl2" "error.demo_options_complevel_has_none"$'\x1f'"2" "an option block at complevel 2"
+refuse "$work/opt-cl2" "error.demo_options_complevel_has_none${us}2" "an option block at complevel 2"
 mkwork "$work/opt-size" "$fd2" freedoom2.wad '{"game": "freedoom2", "compatibilityLevel": "11", "demoOptions": "0102"}'
-refuse "$work/opt-size" "error.demo_options_size"$'\x1f'"2"$'\x1f'"11"$'\x1f'"64" "an option block of the wrong size"
+refuse "$work/opt-size" "error.demo_options_size${us}2${us}11${us}64" "an option block of the wrong size"
 
 echo "== clock"
 # the engine's time() and clock_gettime() are the core's (--wrap); musl's own

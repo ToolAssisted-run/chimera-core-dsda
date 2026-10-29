@@ -43,9 +43,13 @@ def main():
     shutil.copy(wad, os.path.join(work, "dsda-doom.wad"))
     json.dump(p["settings"], open(os.path.join(work, "settings"), "w"))
     json.dump({"pwad": names}, open(os.path.join(work, "slots"), "w"))
+    # the project's "inputs" (Chimera's form since 2026-10-28) as the movie
+    # text the harness plays: its key, the groups joined back, and the entries
+    inputs = p["inputs"]
+    key = "".join("#" + "".join(name + "|" for name in group) for group in inputs["columns"])
     with open(os.path.join(work, "movie.txt"), "w") as f:
-        f.write(p["input"])
-    print(sum(1 for line in p["input"].splitlines() if line.startswith("|")))
+        f.write("[Input]\nLogKey:" + key + "\n" + "".join(e + "\n" for e in inputs["entries"]) + "[/Input]\n")
+    print(len(inputs["entries"]))
 
 
 if __name__ == "__main__":
