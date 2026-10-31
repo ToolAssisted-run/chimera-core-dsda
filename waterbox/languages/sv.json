@@ -118,7 +118,7 @@
 		"setting.fullvision": "Full sikt",
 		"setting.fullvision.about": "Tar bort allt mörker. Originalspelet har detta genom fuskkoden IDBEHOLDL.",
 		"setting.game": "Spel",
-		"setting.game.about": "Vilket spel maskinen är (Chimeras System). Det är spelet som IWAD:en hör till. Det visas inte på inställningssidan.",
+		"setting.game.about": "Vilket spel maskinen är (System i Chimera). Det är spelet som IWAD:en hör till. Det visas inte på inställningssidan.",
 		"setting.gamma": "Gammakorrigeringsnivå",
 		"setting.gamma.about": "Gör bilden ljusare (0 till 4). Det ursprungliga spelets standard är \"OFF\" (0). Knappen Change Gamma stegar genom värdena.",
 		"setting.hudmode": "HUD-läge",
