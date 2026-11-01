@@ -24,7 +24,7 @@ provides them.
 - `waterbox/build-package.sh`: builds the package. `run-gate.sh`: the gate.
 - `waterbox/dsda-driver.c`: the machine. `dsda-input.c`: the controllers.
   `platform/`, `compat/`: what stands in for the engine's SDL and OpenGL code.
-- `waterbox/lmp-import.cpp`: the demo importer (the core's `ImportMovie`).
+- `waterbox/lmp-import.cpp`: the demo importer (the core's own tool, `RunTool`: Import Demo, under Chimera's Tools > Core-Specific Tools).
   `tools/lmp-import.cpp`: its command line.
 - `waterbox/gen-declaration.py` (with `waterbox-base.json` and
   `tools/dump-input.c` beside it): GENERATES `waterbox.config`,

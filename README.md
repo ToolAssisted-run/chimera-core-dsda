@@ -103,13 +103,12 @@ build/native/lmp-import demo.lmp --iwad DOOM2.WAD [--wads <folder>]... [-o demo.
 build/native/lmp-import demo.lmp --game freedoom2 --wads <folder> --pwad map.wad --info
 ```
 
-The importer is the core's (`waterbox/lmp-import.cpp`, C++): compiled into core.wbx, where a frontend calls it -
-the export `ImportMovie`, on a loaded core instead of `Init`, the demo mounted as `movie` and the WADs it reads by
-their names, its options as settings (`importIwad`, `importPwads`, `importNoPwads`,
-`importLongtics`, `importRespawn`, `importFast`, `importNomonsters`), the project's parts returned as JSON
-(`settings`, `firmware`, `files`, `input`, `frames`, what the demo is, notes) or `{"error": ...}`; the
-declaration's `movieImport` is the dialog Chimera draws for it (the demo, the IWAD as the firmware, the PWADs and
-patches into the slot, the options) - and into the command-line tool (`tools/lmp-import.cpp`, built by `native.mk`
+The importer is the core's (`waterbox/lmp-import.cpp`, C++): compiled into core.wbx, where it is the core's own
+tool, **Import Demo (LMP)...** under Chimera's Tools > Core-Specific Tools (the declaration's `tools`; Chimera draws its window: the
+demo, the IWAD, the PWADs and patches in load order, the options, and where the project goes). Chimera runs the
+export `RunTool` instead of `Init`, the demo, the IWAD and the PWADs mounted with a request that names them as the
+person's files are named, and the core writes the whole `.chimeraProject` there, pinned to the package - and into
+the command-line tool (`tools/lmp-import.cpp`, built by `native.mk`
 as `build/native/lmp-import`), which finds the files in folders, pins the package and writes the whole
 `.chimeraProject`. The project it writes is the demo: open it in Chimera (or `chimera-run --project`) with the
 IWAD and the PWADs at hand. The game comes from the IWAD - `--iwad` (the file), `--game` (its IWAD by name, found in
@@ -230,8 +229,8 @@ works every input (`tests/make-recording-movie.py`: every complevel, longtics an
 its extended commands, co-op, deathmatch, the monster flags, a seed, the footer's arguments) and of every format
 it plays and does not record, made from those (`tests/craft-demo.py`: 1.2, 1.4, 1.5, LxDoom, Boom 2.00, option
 blocks of every layout, footers, special commands, PrBoom+um); a changed option block's project without it is not
-the demo; five demos the importer refuses; the core's `ImportMovie` the same in both builds and as the command
-line's. Then native == sandbox, rerecord and session on a three-player demo; the melt's lag in both builds; turbo,
+the demo; five demos the importer refuses; the core's own tool writing the command line's project (with `-c`, in
+Chimera's own sandbox too). Then native == sandbox, rerecord and session on a three-player demo; the melt's lag in both builds; turbo,
 also across the melts; the settings in both builds; the declaration up to date; seven refusals; no host clock in
 the guest; teeth; and with `-c` an imported project through Chimera's own engine (`chimera-run --project`). With
 `-i`, every IWAD in the folder the declaration pins: its own demos (Doom's, Doom II's, Final Doom's, Chex Quest's,
@@ -247,7 +246,7 @@ classes and warp numbers, co-op, dsda's format), native == sandbox and session.
 - `waterbox/platform/`: what the engine's SDL and OpenGL code was - the video (headless), the SDL shim, the
   clock, the stubs, `detmath.c` (the math the renderer calls, the same in every build).
 - `waterbox/wbx-entry.c`: the exports. `run-native.c`, `run-wbx.c`, `gate-harness.h`: the harnesses.
-- `waterbox/lmp-import.cpp`: the importer (the core's `ImportMovie`, and the command line's);
+- `waterbox/lmp-import.cpp`: the importer (the core's tool, `RunTool`, and the command line's);
   `tools/lmp-import.cpp`: its command line.
 - `waterbox/gen-declaration.py`, `waterbox-base.json`: the declaration. `waterbox/tests/`: the gate's tools (the
   rooms, the recording movie, the crafted demos, a project as a harness folder).

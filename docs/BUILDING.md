@@ -232,7 +232,7 @@ the demo itself, tic for tic. The commercial IWADs are never in the
 repository, so the content is Freedoom 0.13.0, levels the gate makes
 (`waterbox/tests/make-rooms.py`) and demos the engine records. The legs, as
 the script's header lists them: demos, levels, formats, imports, export (the
-core's own `ImportMovie`), equivalence (every step's picture, sound and lag,
+core's own tool, `RunTool`), equivalence (every step's picture, sound and lag,
 the clock, the Game State), rerecord (a savestate saved and loaded before
 every step), session (saved, a new host, loaded, finished), turbo, settings,
 declaration (`gen-declaration.py --check`), refusals, clock (the guest has no

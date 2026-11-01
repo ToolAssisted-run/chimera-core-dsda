@@ -143,10 +143,21 @@ archive's: 449 - to the same projects and the same refusals.
 
 ## Left
 
-- **The importer in Chimera**: a frontend call of the core's `ImportMovie` (a session that loads the core,
-  mounts the demo and the WADs, sets the options and calls the export instead of `Init`), and a menu that offers
-  it for a file a package claims (`.lmp`).
 - **What the importer refuses**: a start from a key frame would need the frame (dsda's saved game in the
   demo) as the movie's start; saves and loads mid-demo would need savegames inside the sandbox; Hexen's
   players 5-8 and Boom's 5-32 the core's ports.
 - **Exporting a movie as a demo**: the other way, for DSDA's archive.
+
+## The importer is the core's own tool (2026-11-01)
+
+A core declares tools of its own, which Chimera offers for every installed core under Tools > Core-Specific Tools
+(owner, 2026-11-01), and Chimera's movie importer (`movieImport`, `ImportMovie`) is gone. The demo importer is this core's tool, Import
+Demo (LMP)...: the declaration's `tools` (gen-declaration.py) gives its window - the demo, the IWAD, the PWADs and
+patches in load order, the five options, and the project it writes - and the export `RunTool` (wbx-entry.c) runs
+it with no game: the files mounted as `demo`, `iwad` and `pwad.0`, `pwad.1`, ..., a request (`tool`) naming each as
+the person's file is named and giving the package's hash, and the whole `.chimeraProject` written to `project`,
+pinned to the package, as the command line writes it. The importer asks for files by the person's names, which the
+tool maps to the mounts whatever their case. The export leg now checks that the tool writes the command line's
+project byte for byte (Freedoom's DEMO1, a dsda recording, Hexen's DEMO3 with -i), that a refused demo writes
+nothing, and, with -c, that the tool in Chimera's own sandbox (chimera-run --run-tool) writes the native tool's
+project pinned to the package.

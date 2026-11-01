@@ -292,47 +292,56 @@ def controllers():
         return json.loads(subprocess.run([exe], check=True, capture_output=True, text=True).stdout)
 
 
-# the import dialog Chimera draws from the declaration (as it draws the settings):
-# ImportMovie's demo, its files (mounted under their names, each option set to
-# them) and its options (settings, true when ticked) - wbx-entry.c reads them
-MOVIE_IMPORT = collections.OrderedDict([
+# the core's own tool (Chimera's Tools > Core-Specific Tools, docs/project.md
+# "A core's own tools"): Chimera draws its window from this - the demo, the IWAD, the PWADs
+# and patches in their order, the options (each sent as true or false), and
+# the project it writes - and calls the core's RunTool (wbx-entry.c), which
+# writes the whole .chimeraProject
+TOOLS = [collections.OrderedDict([
+    ("id", "import_demo"),
     ("menu", text("import.menu", "Import Demo (LMP)...")),
-    ("movie", collections.OrderedDict([("label", text("import.demo", "Demo")), ("extensions", ["lmp"])])),
-    ("files", [
-        collections.OrderedDict([("option", "importIwad"), ("label", text("import.iwad", "IWAD")), ("firmware", True), ("required", True),
-                                 ("extensions", ["wad"])]),
-        collections.OrderedDict([("option", "importPwads"), ("label", text("import.pwads", "PWADs and patches, in load order")), ("slot", "pwad"),
-                                 ("multiple", True), ("separator", ";"), ("extensions", ["wad", "deh", "bex"])]),
+    ("description", text("import.about", "Makes a Chimera project from a Doom-engine demo: the game and the files the demo "
+        "was recorded with, the settings it dictates, and its tics as the project's inputs. When the project is opened, it "
+        "finds the files beside it or asks for them.")),
+    ("inputs", [
+        collections.OrderedDict([("name", "demo"), ("label", text("import.demo", "Demo")), ("required", True), ("extensions", ["lmp"])]),
+        collections.OrderedDict([("name", "iwad"), ("label", text("import.iwad", "IWAD")), ("required", True), ("extensions", ["wad"])]),
+        collections.OrderedDict([("name", "pwad"), ("label", text("import.pwads", "PWADs and patches, in load order")),
+                                 ("multiple", True), ("extensions", ["wad", "deh", "bex"])]),
     ]),
     ("options", [
-        collections.OrderedDict([("name", "importNoPwads"), ("display", text("import.nopwads", "No PWADs (an IWAD's own demo)")), ("type", "bool"),
+        collections.OrderedDict([("name", "noPwads"), ("display", text("import.nopwads", "No PWADs (an IWAD's own demo)")),
             ("description", text("import.nopwads.about", "Uses none of the PWADs and patches named in the demo's "
                 "footer. It is for the IWADs' own demos, which were recorded"
                 " with a fix that is now part of the IWAD."))]),
-        collections.OrderedDict([("name", "importLongtics"), ("display", text("import.longtics", "Recorded with longtics (Heretic, Hexen)")), ("type", "bool"),
+        collections.OrderedDict([("name", "longtics"), ("display", text("import.longtics", "Recorded with longtics (Heretic, Hexen)")),
             ("description", text("import.longtics.about", "For a Heretic or Hexen demo that was recorded with "
                 "-longtics but whose header does not say so (demos from "
                 "Hexen+, before vvHeretic added a header flag). Its turns "
                 "are then read as 16-bit values. A demo whose header says so"
                 " needs nothing."))]),
-        collections.OrderedDict([("name", "importRespawn"), ("display", text("import.respawn", "Monsters respawn (Doom 1.0-1.2, Heretic, Hexen)")), ("type", "bool"),
+        collections.OrderedDict([("name", "respawn"), ("display", text("import.respawn", "Monsters respawn (Doom 1.0-1.2, Heretic, Hexen)")),
             ("description", text("import.respawn.about", "For a demo that was recorded with -respawn but whose header"
                 " does not say so. Demos of Doom 1.0 to 1.2 hold no monster "
                 "flags, and Heretic and Hexen demos hold them only when "
                 "DSDA-Doom recorded them. A later Doom demo format holds its"
                 " own flags."))]),
-        collections.OrderedDict([("name", "importFast"), ("display", text("import.fast", "Fast monsters (Doom 1.0-1.2, Heretic, Hexen)")), ("type", "bool"),
+        collections.OrderedDict([("name", "fast"), ("display", text("import.fast", "Fast monsters (Doom 1.0-1.2, Heretic, Hexen)")),
             ("description", text("import.fast.about", "For a demo that was recorded with -fast. The headers of "
                 "Doom 1.0 to 1.2, Heretic and Hexen demos do not hold this. "
                 "A later Doom demo format holds its own flag."))]),
-        collections.OrderedDict([("name", "importNomonsters"), ("display", text("import.nomonsters", "No monsters (Doom 1.0-1.2, Heretic, Hexen)")), ("type", "bool"),
+        collections.OrderedDict([("name", "nomonsters"), ("display", text("import.nomonsters", "No monsters (Doom 1.0-1.2, Heretic, Hexen)")),
             ("description", text("import.nomonsters.about", "For a demo that was recorded with -nomonsters but whose "
                 "header does not say so. Demos of Doom 1.0 to 1.2 hold no "
                 "monster flags, and Heretic and Hexen demos hold them only "
                 "when DSDA-Doom recorded them. A later Doom demo format "
                 "holds its own flags."))]),
     ]),
-])
+    ("outputs", [
+        collections.OrderedDict([("name", "project"), ("label", text("import.project", "Project")), ("extension", "chimeraProject"),
+                                 ("nameFrom", "demo")]),
+    ]),
+])]
 
 
 # ---- what the controls and the system are called ----
@@ -441,7 +450,7 @@ def declaration():
         e["requiredWhen"] = {"setting": "game", "is": g}
         fw.append(e)
     out["firmware"] = fw
-    out["movieImport"] = MOVIE_IMPORT
+    out["tools"] = TOOLS
     return out
 
 
@@ -534,14 +543,14 @@ def main():
     if "--known-iwads" in sys.argv:   # for the gate: "<SHA1> <game> <firmware id>" a line
         for v in KNOWN: print(v.sha1.upper(), v.game, v.iwad)
         return
-    # the dialog sets only what ImportMovie reads, into a slot the core has
+    # the tool's window sends only what RunTool reads
     entry = open(os.path.join(HERE, "wbx-entry.c")).read()
-    for name in [f["option"] for f in MOVIE_IMPORT["files"]] + [o["name"] for o in MOVIE_IMPORT["options"]]:
-        if '"%s"' % name not in entry:
-            sys.exit("movieImport: wbx-entry.c's ImportMovie does not read %s" % name)
-    for f in MOVIE_IMPORT["files"]:
-        if "slot" in f and f["slot"] not in [slot["id"] for slot in SLOTS["slots"]]:
-            sys.exit("movieImport: no file slot %s" % f["slot"])
+    for tool in TOOLS:
+        if '"\\"tool\\":\\"%s\\""' % tool["id"] not in entry:
+            sys.exit("tools: wbx-entry.c's RunTool does not run %s" % tool["id"])
+        for name in [i["name"] for i in tool["inputs"]] + [o["name"] for o in tool["options"]] + [o["name"] for o in tool["outputs"]]:
+            if '"%s' % name not in entry:
+                sys.exit("tools: wbx-entry.c's RunTool does not read %s" % name)
     outputs = {
         "default_keybinds.json": json.dumps(keybinds(), indent=2) + "\n",
         "waterbox.config": json.dumps(declaration(), indent=2, ensure_ascii=False) + "\n",

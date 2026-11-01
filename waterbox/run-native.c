@@ -37,7 +37,7 @@ extern uint8_t *GetMemoryDomainPtr(int i);
 extern int64_t GetMemoryDomainSize(int i);
 extern uint64_t GetCycleCount(void);
 extern const char *GetGameProperties(void);
-extern const char *ImportMovie(void);
+extern const char *RunTool(void);
 extern int IsButtonActive(int32_t index);
 extern int IsAxisActive(int32_t index);
 
@@ -102,7 +102,7 @@ int main(int argc, char **argv)
 		.set_rendering = SetRenderingEnabled,
 		.clock = GetCycleCount,
 		.game_properties = GetGameProperties,
-		.import_movie = ImportMovie,
+		.run_tool = RunTool,
 		.button_active = IsButtonActive,
 		.axis_active = IsAxisActive,
 	};

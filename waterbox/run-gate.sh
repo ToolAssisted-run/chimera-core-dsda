@@ -33,11 +33,13 @@
 #   imports      what the importer refuses, saying why: a fifth player, a start
 #                from a key frame, a game saved mid-demo, a version no format
 #                has, a versionless demo without its game
-#   export       the core's own ImportMovie (the importer in core.wbx, which a
-#                frontend calls with the demo mounted and the options as
-#                settings): the parts of a demo's project, native = sandbox =
-#                the command line's; a refusal its {"error"}; with -i, Hexen's
-#                warp number from the mounted IWAD's MAPINFO
+#   export       the core's own tool, Import Demo (the importer in core.wbx,
+#                which Chimera's Tools menu runs with the demo and the WADs
+#                mounted and a request saying their names and the options):
+#                the project it writes = the command line's; a refusal its
+#                {"refused"} and no project; with -i, Hexen's warp number from
+#                the mounted IWAD's MAPINFO. With -c, the engine leg runs the
+#                tool in Chimera's sandbox (chimera-run --run-tool) too.
 #   equivalence  run-native and run-wbx on Freedoom's DEMO4 (Phase 1's E4M6,
 #                three players), imported: every step's picture, sound and lag,
 #                the machine's clock and the Game State domain (the raw record
@@ -362,34 +364,49 @@ refuse_import excmdsave cl21-dsda "error.demo.saves_or_loads" "a game saved mid-
 refuse_import badversion cl2 "error.demo.version_unknown" "a version no format has" --game freedoom2
 refuse_import doom12 cl2 "error.demo.which_iwad" "a versionless demo without its game"
 
-echo "== export (the core's ImportMovie)"
-# export <name> <demo> <settings JSON> <command-line arguments> [file=mounted name]...
+echo "== export (the core's own tool, Import Demo)"
+# tool_request <dir> <demo> <options JSON> <iwad> [pwad]... [-- <package sha1> <version>]:
+# the work folder of a tool run as Chimera's Tools menu runs it - the demo,
+# the IWAD and the PWADs under the names Chimera mounts them by, and the
+# request Chimera writes (no spaces), naming each file as the person's is
+tool_request() {
+	td="$1"; tlmp="$2"; topts="$3"; tiw="$4"; shift 4
+	tsha=""; tver=""
+	mkdir -p "$td"
+	cp "$tlmp" "$td/demo"; cp "$tiw" "$td/iwad"
+	tinputs="\"demo\":\"$(basename "$tlmp")\",\"iwad\":\"$(basename "$tiw")\""
+	ti=0
+	while [ $# -gt 0 ]; do
+		if [ "$1" = "--" ]; then tsha="$2"; tver="$3"; break; fi
+		cp "$1" "$td/pwad.$ti"; tinputs="$tinputs,\"pwad.$ti\":\"$(basename "$1")\""; ti=$((ti + 1)); shift
+	done
+	printf '{"tool":"import_demo","package":{"sha1":"%s","version":"%s"},"options":%s,"inputs":{%s},"outputs":{"project":"p.chimeraProject"}}' \
+		"$tsha" "$tver" "$topts" "$tinputs" > "$td/tool"
+}
+# export_check <name> <demo> <tool options JSON> <command-line arguments> <iwad>:
+# the project the tool writes (natively) is the command line's, byte for byte
 export_check() {
-	n="$1"; lmp="$2"; set_="$3"; cli="$4"; shift 4
+	n="$1"; lmp="$2"; opts="$3"; cli="$4"; iw="$5"
 	d="$work/export/$n"
-	mkdir -p "$d"
-	cp "$lmp" "$d/movie"
-	printf '%s' "$set_" > "$d/settings"
-	for f in "$@"; do cp "${f%%=*}" "$d/${f#*=}"; done
-	"$native" "$d" --import > "$d/native.json" 2> "$d/native.err" || true
-	"$wbx" "$core" "$d" --import 2>/dev/null | grep -v '^\[' > "$d/wbx.json" || true
-	"$importer" "$lmp" $cli --info > "$d/cli.json" 2> "$d/cli.err" || true
-	if [ -s "$d/native.json" ] && cmp -s "$d/native.json" "$d/wbx.json" && cmp -s "$d/native.json" "$d/cli.json"; then
-		pass "export: $n - ImportMovie native = sandbox = the command line ($(head -c 300 "$d/native.json" | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-90)...)"
+	rm -rf "$d"
+	tool_request "$d/native" "$lmp" "$opts" "$iw"
+	"$native" "$d/native" --tool > "$d/native.json" 2> "$d/native.err" || true
+	"$importer" "$lmp" $cli -o "$d/cli.chimeraProject" > "$d/cli.out" 2> "$d/cli.err" || true
+	if grep -q '^{"done": "import.done' "$d/native.json" && [ -s "$d/native/project" ] && cmp -s "$d/native/project" "$d/cli.chimeraProject"; then
+		pass "export: $n - the tool's project = the command line's ($(cut -c1-80 "$d/native.json"))"
 	else
-		fail "export: $n - native, sandbox and the command line differ"
+		fail "export: $n - the tool's project and the command line's differ ($(head -c 200 "$d/native.json"))"
 	fi
 }
-export_check freedoom2-DEMO1 "$work/demo2-1/freedoom2-DEMO1.lmp" '{"importIwad": "freedoom2.wad", "importNoPwads": true}' "--iwad $fd2 --no-pwads" "$fd2=freedoom2.wad"
-[ -f "$fmt/cl21-dsda/rec.lmp" ] && export_check cl21-dsda "$fmt/cl21-dsda/rec.lmp" '{"importIwad": "freedoom2.wad"}' "--iwad $fd2" "$fd2=freedoom2.wad"
+export_check freedoom2-DEMO1 "$work/demo2-1/freedoom2-DEMO1.lmp" '{"noPwads":true}' "--iwad $fd2 --no-pwads" "$fd2"
+[ -f "$fmt/cl21-dsda/rec.lmp" ] && export_check cl21-dsda "$fmt/cl21-dsda/rec.lmp" '{}' "--iwad $fd2" "$fd2"
 [ -f "$ref/players5.lmp" ] && {
-	mkdir -p "$work/export/refused"
-	cp "$ref/players5.lmp" "$work/export/refused/movie"
-	printf '{}' > "$work/export/refused/settings"
-	if out="$("$native" "$work/export/refused" --import 2>/dev/null)"; then
-		fail "export: a refused demo - ImportMovie succeeded"
-	elif echo "$out" | grep -q '^{"error": "error.demo.more_than_four_players\\u001f5"}'; then
-		pass "export: a refused demo - $out"
+	rm -rf "$work/export/refused"
+	tool_request "$work/export/refused" "$ref/players5.lmp" '{}' "$fd2"
+	if out="$("$native" "$work/export/refused" --tool 2>/dev/null)"; then
+		fail "export: a refused demo - the tool wrote a project"
+	elif echo "$out" | grep -q '^{"refused": "error.demo.more_than_four_players\\u001f5"}' && [ ! -s "$work/export/refused/project" ]; then
+		pass "export: a refused demo - $out, nothing written"
 	else
 		fail "export: a refused demo - $out"
 	fi
@@ -538,6 +555,23 @@ if [ -n "$chimera_run" ]; then
 	else
 		fail "engine: chimera-run --project"; tail -3 "$ed/engine.out"
 	fi
+	# the tool as Chimera's Tools menu runs it, in Chimera's sandbox
+	# (chimera-run --run-tool): the project it writes is the native tool's,
+	# given the package's hash and version as Chimera gives them, and pinned
+	# to the package
+	psha="$(sha1sum "$work/package/dsda.chimeraCore" | cut -c1-40 | tr a-f A-F)"
+	pver="$(unzip -p "$work/package/dsda.chimeraCore" waterbox.config | python3 -c 'import json, sys; print(json.load(sys.stdin).get("version", ""))')"
+	rm -rf "$ed/tool"
+	tool_request "$ed/tool/native" "$work/demo2-1/freedoom2-DEMO1.lmp" '{"noPwads":true}' "$fd2" -- "$psha" "$pver"
+	"$native" "$ed/tool/native" --tool > "$ed/tool/native.json" 2>&1 || true
+	"$chimera_run" --run-tool import_demo "$work/package/dsda.chimeraCore" --input demo="$work/demo2-1/freedoom2-DEMO1.lmp" \
+		--input iwad="$fd2" --output project="$ed/tool/sandbox.chimeraProject" --tool-options '{"noPwads":true}' > "$ed/tool/sandbox.json" 2>&1 || true
+	if grep -q '^{"done": "The project is written' "$ed/tool/sandbox.json" && cmp -s "$ed/tool/native/project" "$ed/tool/sandbox.chimeraProject" \
+		&& grep -q "\"$psha\"" "$ed/tool/sandbox.chimeraProject"; then
+		pass "engine: the tool in Chimera's sandbox writes the native tool's project, pinned to the package ($(cut -c1-90 "$ed/tool/sandbox.json"))"
+	else
+		fail "engine: the tool in Chimera's sandbox ($(head -c 200 "$ed/tool/sandbox.json"))"
+	fi
 fi
 
 # a Raven recording's special commands with their low bits, crafted: <game> <case>
@@ -588,7 +622,9 @@ PY
 				craft_raven hexen hexen-cleric ;;
 		esac
 		if [ "$game" = hexen ] && [ -f "$work/iwad-$version-DEMO3/$version-DEMO3.lmp" ]; then
-			export_check hexen-DEMO3 "$work/iwad-$version-DEMO3/$version-DEMO3.lmp" "{\"importIwad\": \"$id\"}" "--game $game --wads $work/files" "$f=$id"
+			# (the IWAD picked under the name the command line finds it by)
+			mkdir -p "$work/export/hexen-iwad" && cp "$f" "$work/export/hexen-iwad/$id"
+			export_check hexen-DEMO3 "$work/iwad-$version-DEMO3/$version-DEMO3.lmp" '{}' "--game $game --wads $work/files" "$work/export/hexen-iwad/$id"
 		fi
 		[ -n "$first" ] || continue
 		dd="$first/m"

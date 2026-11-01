@@ -1,5 +1,5 @@
 /* lmp-import - a Doom-engine demo (.lmp) as a Chimera project for the DSDA
- * core: the core's own importer (waterbox/lmp-import.cpp, its ImportMovie
+ * core: the core's own importer (waterbox/lmp-import.cpp, its RunTool
  * export's) with what a command line adds - finding the IWAD and the PWADs in
  * folders, the package's identity, and the .chimeraProject written out.
  *

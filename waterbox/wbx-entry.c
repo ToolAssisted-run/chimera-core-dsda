@@ -4,6 +4,7 @@
  * reference (native-shim/emulibc.h): the same driver and exports, one in the
  * sandbox and one out of it, which is what makes the equivalence gate a proof.
  */
+#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -115,117 +116,227 @@ ECL_EXPORT const char *GetGameProperties(void) { return dsdadrv_game_properties(
 
 ECL_EXPORT uint64_t GetCycleCount(void) { return dsdadrv_clock(); }
 
-/* ------------------------------------------------------------ the importer */
+/* ------------------------------------------------------------ the tool */
 
-/* the files an import reads (the demo, the WADs), each read whole once */
-#define IMPORT_FILES 64
-static struct { char name[256]; unsigned char *data; size_t size; } g_import_files[IMPORT_FILES];
+/* The core's own tool, the demo importer (its package's "tools", which
+ * Chimera offers under Tools > Core-Specific Tools): a Doom-engine demo made into a Chimera
+ * project for this core (lmp-import.h), written to the file the person chose.
+ * Chimera calls RunTool instead of Init, with no game. Its request is the
+ * file "tool" (written with no spaces):
+ *   {"tool":"import_demo","package":{"sha1":...,"version":...},
+ *    "options":{"noPwads":...,"longtics":...,"respawn":...,"fast":...,"nomonsters":...},
+ *    "inputs":{"demo":"<name>","iwad":"<name>","pwad.0":"<name>",...},
+ *    "outputs":{"project":"<name>"}}
+ * The demo is mounted as "demo", the IWAD as "iwad", the PWADs and patches
+ * as pwad.0, pwad.1, ... in the order picked; the importer asks for each by
+ * the name the person's file has (the IWAD's, the footer's), whatever its
+ * case. The project pins this package by the hash and version the request
+ * gives. The answer is {"done": ...} or {"refused": ...}, a key of the
+ * package's texts and its arguments. */
+
+/* the files the import reads, each read whole once: by mount name */
+#define IMPORT_FILES 66
+static struct { char mount[32]; char name[256]; unsigned char *data; size_t size; } g_import_files[IMPORT_FILES];
 static int g_import_nfiles;
-static char *g_import_result;
+static char g_tool_answer[2048];
+
+/* a string or a flag of one of the request's objects ("inputs", "options",
+ * "package"); "" or 0 when it is not there */
+static const char *tool_object(const char *req, const char *object, const char **end)
+{
+	char key[64];
+	snprintf(key, sizeof key, "\"%s\":{", object);
+	const char *at = strstr(req, key);
+	if (!at) return NULL;
+	at += strlen(key);
+	const char *p = at;
+	int depth = 1, quoted = 0;
+	for (; *p && depth; p++)
+	{
+		if (quoted) { if (*p == '\\' && p[1]) p++; else if (*p == '"') quoted = 0; }
+		else if (*p == '"') quoted = 1;
+		else if (*p == '{') depth++;
+		else if (*p == '}') depth--;
+	}
+	*end = p;
+	return at;
+}
+
+static int tool_string(const char *req, const char *object, const char *name, char *out, size_t cap)
+{
+	out[0] = 0;
+	const char *end, *at = tool_object(req, object, &end);
+	if (!at) return 0;
+	char key[96];
+	snprintf(key, sizeof key, "\"%s\":\"", name);
+	const size_t klen = strlen(key);
+	for (const char *p = at; p + klen <= end; p++)
+	{
+		if (strncmp(p, key, klen)) continue;
+		size_t n = 0;
+		for (p += klen; *p && *p != '"' && n + 1 < cap; p++)
+		{
+			if (*p == '\\' && p[1])
+			{
+				p++;
+				/* the escapes a JSON writer uses for a name: \" \\ \/ and \u00XX */
+				if (*p == 'u' && p[1] && p[2] && p[3] && p[4])
+				{
+					unsigned v = 0;
+					sscanf(p + 1, "%4x", &v);
+					out[n++] = (char)v;
+					p += 4;
+					continue;
+				}
+			}
+			out[n++] = *p;
+		}
+		out[n] = 0;
+		return 1;
+	}
+	return 0;
+}
+
+static int tool_flag(const char *req, const char *object, const char *name)
+{
+	const char *end, *at = tool_object(req, object, &end);
+	if (!at) return 0;
+	char key[96];
+	snprintf(key, sizeof key, "\"%s\":true", name);
+	const char *found = strstr(at, key);
+	return found && found < end;
+}
+
+static int same_name(const char *a, const char *b)
+{
+	for (; *a && *b; a++, b++)
+		if (tolower((unsigned char)*a) != tolower((unsigned char)*b)) return 0;
+	return *a == *b;
+}
 
 static const unsigned char *import_read(void *ctx, const char *name, size_t *size, const char **found_name)
 {
 	(void)ctx;
-	(void)found_name;
+	/* a name the importer asks for, as the person's file is called (or the
+	 * mount itself) */
 	for (int i = 0; i < g_import_nfiles; i++)
-		if (!strcmp(g_import_files[i].name, name))
+		if (same_name(g_import_files[i].name, name) || !strcmp(g_import_files[i].mount, name))
 		{
+			if (!g_import_files[i].data)
+			{
+				FILE *f = fopen(g_import_files[i].mount, "rb");
+				if (!f) return NULL;
+				unsigned char *data = NULL;
+				size_t n = 0, cap = 0;
+				for (;;)
+				{
+					if (n == cap)
+					{
+						unsigned char *grown = (unsigned char *)realloc(data, cap = cap ? cap * 2 : 1 << 16);
+						if (!grown) { free(data); fclose(f); return NULL; }
+						data = grown;
+					}
+					const size_t got = fread(data + n, 1, cap - n, f);
+					if (!got) break;
+					n += got;
+				}
+				fclose(f);
+				g_import_files[i].data = data;
+				g_import_files[i].size = n;
+			}
 			*size = g_import_files[i].size;
+			if (found_name) *found_name = g_import_files[i].name;
 			return g_import_files[i].data;
 		}
-	if (g_import_nfiles == IMPORT_FILES) return NULL;
-	FILE *f = fopen(name, "rb");
-	if (!f) return NULL;
-	unsigned char *data = NULL;
-	size_t n = 0, cap = 0;
-	for (;;)
-	{
-		if (n == cap)
-		{
-			unsigned char *grown = (unsigned char *)realloc(data, cap = cap ? cap * 2 : 1 << 16);
-			if (!grown) { free(data); fclose(f); return NULL; }
-			data = grown;
-		}
-		const size_t got = fread(data + n, 1, cap - n, f);
-		if (!got) break;
-		n += got;
-	}
-	fclose(f);
-	snprintf(g_import_files[g_import_nfiles].name, sizeof g_import_files[0].name, "%s", name);
-	g_import_files[g_import_nfiles].data = data;
-	g_import_files[g_import_nfiles].size = n;
-	g_import_nfiles++;
-	*size = n;
-	return data;
+	return NULL;
 }
 
-static char *import_error(const char *msg)
+/* {"<what>": "<text>"}, the text escaped for JSON */
+static const char *tool_answer(const char *what, const char *text)
 {
-	size_t n = strlen(msg);
-	char *out = (char *)malloc(n * 6 + 16);
-	if (!out) return NULL;
-	char *p = out + sprintf(out, "{\"error\": \"");
-	for (const unsigned char *c = (const unsigned char *)msg; *c; c++)
+	char *p = g_tool_answer + snprintf(g_tool_answer, sizeof g_tool_answer, "{\"%s\": \"", what);
+	char *const last = g_tool_answer + sizeof g_tool_answer - 8;
+	for (const unsigned char *c = (const unsigned char *)text; *c && p < last; c++)
 	{
 		if (*c == '"' || *c == '\\') p += sprintf(p, "\\%c", *c);
-		else if (*c < 0x20 || *c >= 0x7f) p += sprintf(p, "\\u%04x", *c);
+		else if (*c < 0x20) p += sprintf(p, "\\u%04x", *c);
 		else *p++ = (char)*c;
 	}
-	strcpy(p, "\"}\n");
-	return out;
+	strcpy(p, "\"}");
+	return g_tool_answer;
 }
 
-/* A demo as the parts of a Chimera project (lmp-import.h) - for a frontend,
- * which loads the core and calls this instead of Init. The demo is the mounted
- * file "movie"; the WADs it reads are mounted files by their names (the IWAD as
- * importIwad names it, else as the demo's footer does; the PWADs and patches by
- * the names the footer gives, or importPwads's). The options are settings:
- *   importIwad        the mounted IWAD's name: the game (any release of its IWAD;
- *                     the project pins the file's hash)
- *   importPwads       the PWADs and patches by name, ';' between, in order
- *   importNoPwads     none, whatever the footer names
- *   importLongtics    a Raven demo recorded with -longtics its header does not say
- *   importRespawn, importFast, importNomonsters   the monster flags a Doom 1.0-1.2,
- *                     Heretic or Hexen demo does not hold
- * The JSON of the parts - "settings", "firmware", "files", "input", "frames",
- * and what the demo is ("format", "tics", "players", "footer", "port",
- * "notes") - or {"error": "why"}. */
-ECL_EXPORT const char *ImportMovie(void)
+ECL_EXPORT const char *RunTool(void)
 {
-	static char iwad[256], pwad_list[4096];
-	static char *pwads[64];
-	free(g_import_result);
-	g_import_result = NULL;
+	static char req[32 * 1024];
+	FILE *r = fopen("tool", "rb");
+	const size_t got = r ? fread(req, 1, sizeof req - 1, r) : 0;
+	if (r) fclose(r);
+	req[got] = 0;
 	for (int i = 0; i < g_import_nfiles; i++) free(g_import_files[i].data);
+	memset(g_import_files, 0, sizeof g_import_files);
 	g_import_nfiles = 0;
+	if (!strstr(req, "\"tool\":\"import_demo\"")) return tool_answer("refused", "error.tool.unknown");
+
+	/* the files picked: the demo, the IWAD, the PWADs in their order */
+	static char pwad_names[64][256];
+	static const char *pwads[64];
+	int npwads = 0;
+	char demo_name[256], iwad_name[256];
+	tool_string(req, "inputs", "demo", demo_name, sizeof demo_name);
+	tool_string(req, "inputs", "iwad", iwad_name, sizeof iwad_name);
+	snprintf(g_import_files[g_import_nfiles].mount, sizeof g_import_files[0].mount, "iwad");
+	snprintf(g_import_files[g_import_nfiles++].name, sizeof g_import_files[0].name, "%s", iwad_name);
+	for (; npwads < 64; npwads++)
+	{
+		char mount[32];
+		snprintf(mount, sizeof mount, "pwad.%d", npwads);
+		if (!tool_string(req, "inputs", mount, pwad_names[npwads], sizeof pwad_names[0])) break;
+		pwads[npwads] = pwad_names[npwads];
+		snprintf(g_import_files[g_import_nfiles].mount, sizeof g_import_files[0].mount, "%s", mount);
+		snprintf(g_import_files[g_import_nfiles++].name, sizeof g_import_files[0].name, "%s", pwad_names[npwads]);
+	}
+	snprintf(g_import_files[g_import_nfiles].mount, sizeof g_import_files[0].mount, "demo");
+	snprintf(g_import_files[g_import_nfiles++].name, sizeof g_import_files[0].name, "%s", demo_name);
 
 	struct lmpi_options o;
 	memset(&o, 0, sizeof o);
-	iwad[0] = pwad_list[0] = 0;
-	if (wbx_setting_str("importIwad", iwad, (int)sizeof iwad) > 0) o.iwad = iwad;
-	if (wbx_setting_str("importPwads", pwad_list, (int)sizeof pwad_list) >= 0)
-	{
-		int n = 0;
-		for (char *t = strtok(pwad_list, ";"); t && n < 64; t = strtok(NULL, ";")) pwads[n++] = t;
-		o.pwads = (const char *const *)pwads;
-		o.npwads = n;
-	}
-	o.no_pwads = wbx_setting_bool("importNoPwads", 0);
-	o.longtics = wbx_setting_bool("importLongtics", 0);
-	o.respawn = wbx_setting_bool("importRespawn", 0);
-	o.fast = wbx_setting_bool("importFast", 0);
-	o.nomonsters = wbx_setting_bool("importNomonsters", 0);
+	o.iwad = iwad_name[0] ? iwad_name : NULL;
+	o.pwads = npwads ? (const char *const *)pwads : NULL;
+	o.npwads = npwads;
+	o.no_pwads = tool_flag(req, "options", "noPwads");
+	o.longtics = tool_flag(req, "options", "longtics");
+	o.respawn = tool_flag(req, "options", "respawn");
+	o.fast = tool_flag(req, "options", "fast");
+	o.nomonsters = tool_flag(req, "options", "nomonsters");
 	o.read = import_read;
 
 	size_t size;
-	const unsigned char *demo = import_read(NULL, "movie", &size, NULL);
+	const unsigned char *demo = import_read(NULL, "demo", &size, NULL);
+	if (!demo) return tool_answer("refused", "error.import.no_demo");
+
+	/* the project: named after the demo, pinned to this package */
+	char title[256], sha1[64], version[128];
+	snprintf(title, sizeof title, "%s", demo_name);
+	char *dot = strrchr(title, '.');
+	if (dot && dot != title) *dot = 0;
+	tool_string(req, "package", "sha1", sha1, sizeof sha1);
+	tool_string(req, "package", "version", version, sizeof version);
+	struct lmpi_project project = { title, demo_name, "DSDA-Doom", version, sha1 };
+	struct lmpi_summary summary;
+	memset(&summary, 0, sizeof summary);
 	char err[1024];
-	if (!demo)
-		g_import_result = import_error("error.import.no_demo");
-	else
-	{
-		g_import_result = lmpi_import(demo, size, &o, NULL, NULL, err, sizeof err);
-		if (!g_import_result) g_import_result = import_error(err);
-	}
-	return g_import_result ? g_import_result : "{\"error\": \"error.out_of_memory\"}\n";
+	char *json = lmpi_import(demo, size, &o, &project, &summary, err, sizeof err);
+	if (!json) return tool_answer("refused", err);
+	FILE *out = fopen("project", "wb");
+	const size_t len = strlen(json);
+	int wrote = out && fwrite(json, 1, len, out) == len;
+	if (out && fclose(out) != 0) wrote = 0;
+	free(json);
+	if (!wrote) return tool_answer("refused", "error.tool.not_written");
+
+	/* what was made: the demo's format and length */
+	char done[256];
+	snprintf(done, sizeof done, "import.done\x1f%s\x1f%ld", summary.format, summary.tics);
+	return tool_answer("done", done);
 }

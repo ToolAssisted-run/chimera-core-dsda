@@ -3,7 +3,7 @@
  * its IWAD (the game, any release) as the firmware, its PWADs and patches as the pwad slot's files, its
  * tics as the input log, frame for tic - or as the whole .chimeraProject.
  *
- * The same code in the core (wbx-entry.c's ImportMovie, which a frontend calls
+ * The same code in the core (wbx-entry.c's RunTool, the tool a frontend runs
  * with the demo and the WADs mounted) and in the command-line tool
  * (tools/lmp-import.cpp). It has no file system of its own: what it needs to
  * read - the IWAD (the game: by its hash when it is a dump the core knows,
