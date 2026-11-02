@@ -43,7 +43,7 @@ struct lmpi_options
 struct lmpi_project
 {
 	const char *title;
-	const char *source;           /* the demo's file name, for the description */
+	const char *source;           /* the demo's file name (a project has no description to put it in now) */
 	const char *core_name, *core_version, *core_sha1;
 };
 
@@ -62,10 +62,13 @@ struct lmpi_summary
 
 /* the demo as JSON (malloc'd: the caller frees it) - the parts ({"game",
  * "settings", "firmware", "files", "input", "frames", "format",
- * "tics", "players", "footer", "port", "notes"}), or with a project the whole
- * .chimeraProject - or NULL and the reason in err. summary may be NULL. */
+ * "tics", "players", "footer", "port", "notes"}), or with a project the
+ * project's project.json - or NULL and the reason in err. A project's input
+ * is not in its project.json but in a file of its own beside it (Chimera's
+ * project, a zip, since 2026-11-02): with a project, lines gets its entries,
+ * one a line (malloc'd too), when it is not NULL. summary may be NULL. */
 char *lmpi_import(const unsigned char *demo, size_t size, const struct lmpi_options *o,
-	const struct lmpi_project *project, struct lmpi_summary *summary, char *err, size_t errsize);
+	const struct lmpi_project *project, char **lines, struct lmpi_summary *summary, char *err, size_t errsize);
 
 /* a SHA1 as upper-case hex */
 void lmpi_sha1(const unsigned char *data, size_t size, char out[41]);

@@ -107,10 +107,11 @@ The importer is the core's (`waterbox/lmp-import.cpp`, C++): compiled into core.
 tool, **Import Demo (LMP)...** under Chimera's Tools > Core-Specific Tools (the declaration's `tools`; Chimera draws its window: the
 demo, the IWAD, the PWADs and patches in load order, the options, and where the project goes). Chimera runs the
 export `RunTool` instead of `Init`, the demo, the IWAD and the PWADs mounted with a request that names them as the
-person's files are named, and the core writes the whole `.chimeraProject` there, pinned to the package - and into
+person's files are named, and the core writes the project there, pinned to the package: its two parts,
+`project.json` and the tics one line each, which Chimera makes into the `.chimeraProject` (a zip of the two) - and into
 the command-line tool (`tools/lmp-import.cpp`, built by `native.mk`
 as `build/native/lmp-import`), which finds the files in folders, pins the package and writes the whole
-`.chimeraProject`. The project it writes is the demo: open it in Chimera (or `chimera-run --project`) with the
+`.chimeraProject` (the same zip, its parts stored). The project it writes is the demo: open it in Chimera (or `chimera-run --project`) with the
 IWAD and the PWADs at hand. The game comes from the IWAD - `--iwad` (the file), `--game` (its IWAD by name, found in
 `--wads`), or the demo's own footer (its `-iwad`, found in `--wads`): a dump the core knows by its hash, else by its
 name and lumps; the firmware is that file, by its own hash, and a fourth episode in it (E4M1) makes a 1.9 demo The

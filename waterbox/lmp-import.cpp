@@ -1287,13 +1287,27 @@ std::string parts_json(const Result &r)
 	return out;
 }
 
-/* the movie's text as a project file holds it (Chimera's since 2026-10-28):
- * "inputs", the key's groups of columns in order - a group begins at each
- * '#', a name ends at each '|' - and one entry a frame */
+/* the movie's text as a project holds it (Chimera's since 2026-11-02):
+ * "inputs" in project.json, the key's groups of columns in order - a group
+ * begins at each '#', a name ends at each '|' - and the entries, one a line,
+ * in the project's input file (entry_lines) */
+std::string entry_lines(const std::string &input)
+{
+	std::string out;
+	for (size_t at = 0; at < input.size();)
+	{
+		size_t nl = input.find('\n', at);
+		if (nl == std::string::npos) nl = input.size();
+		const std::string line = input.substr(at, nl - at);
+		at = nl + 1;
+		if (!line.empty() && line[0] == '|') out += line + "\n";
+	}
+	return out;
+}
+
 std::string inputs_json(const std::string &input)
 {
 	std::vector<std::vector<std::string>> groups;
-	std::vector<std::string> entries;
 	for (size_t at = 0; at < input.size();)
 	{
 		size_t nl = input.find('\n', at);
@@ -1317,8 +1331,6 @@ std::string inputs_json(const std::string &input)
 				k = bar + 1;
 			}
 		}
-		else if (!line.empty() && line[0] == '|')
-			entries.push_back(line);
 	}
 	std::string out = "{\n    \"columns\": [";
 	for (size_t g = 0; g < groups.size(); g++)
@@ -1327,19 +1339,15 @@ std::string inputs_json(const std::string &input)
 		for (size_t i = 0; i < groups[g].size(); i++) out += std::string(i ? ", " : "") + quote(groups[g][i]);
 		out += "]";
 	}
-	out += "],\n    \"entries\": [";
-	for (size_t i = 0; i < entries.size(); i++) out += std::string(i ? "," : "") + "\n      " + quote(entries[i]);
-	out += entries.empty() ? "]\n  }" : "\n    ]\n  }";
+	out += "]\n  }";
 	return out;
 }
 
 std::string project_json(const Result &r, const struct lmpi_project *p)
 {
-	std::string description = "Imported from " + std::string(p->source ? p->source : "a demo") + ": " + r.demo.format + ", " +
-		std::to_string(r.demo.tics.size()) + " tics" + (r.port.empty() ? "" : ", recorded with " + r.port) + ".";
+	/* no "description": a project has none (Chimera, 2026-11-02) */
 	std::string out = "{\n";
 	out += "  \"title\": " + quote(p->title ? p->title : "") + ",\n";
-	out += "  \"description\": " + quote(description) + ",\n";
 	out += "  \"core\": {\n    \"name\": " + quote(p->core_name ? p->core_name : "DSDA-Doom") + ",\n    \"version\": " +
 		quote(p->core_version ? p->core_version : "") + ",\n    \"sha1\": " + quote(p->core_sha1 ? p->core_sha1 : "") + "\n  },\n";
 	out += "  \"rerecords\": 0,\n  \"files\": [";
@@ -1360,7 +1368,7 @@ std::string project_json(const Result &r, const struct lmpi_project *p)
 } /* namespace */
 
 extern "C" char *lmpi_import(const unsigned char *demo, size_t size, const struct lmpi_options *o,
-	const struct lmpi_project *project, struct lmpi_summary *summary, char *err, size_t errsize)
+	const struct lmpi_project *project, char **lines, struct lmpi_summary *summary, char *err, size_t errsize)
 {
 	try
 	{
@@ -1386,6 +1394,18 @@ extern "C" char *lmpi_import(const unsigned char *demo, size_t size, const struc
 			return nullptr;
 		}
 		memcpy(out, json.c_str(), json.size() + 1);
+		if (project && lines)
+		{
+			const std::string text = entry_lines(r.input);
+			*lines = (char *)malloc(text.size() + 1);
+			if (!*lines)
+			{
+				free(out);
+				snprintf(err, errsize, "error.out_of_memory");
+				return nullptr;
+			}
+			memcpy(*lines, text.c_str(), text.size() + 1);
+		}
 		return out;
 	}
 	catch (const DemoError &e)

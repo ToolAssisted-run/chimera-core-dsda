@@ -157,6 +157,48 @@ std::string zip_entry(const std::vector<unsigned char> &z, const char *want)
 	return std::string();
 }
 
+/* A Chimera project file (since 2026-11-02): a zip of project.json and the
+ * input's lines, input.input, each stored as it is (the zlib the core carries
+ * has no deflate). Written whole, then moved over the file, so a write that
+ * fails leaves what was there. */
+bool write_project(const std::string &path, const std::string &json, const std::string &lines)
+{
+	const std::pair<const char *, const std::string *> parts[] = { { "project.json", &json }, { "input.input", &lines } };
+	std::string zip, central;
+	auto u16 = [](std::string &o, unsigned v) { o += (char)(v & 0xFF); o += (char)(v >> 8 & 0xFF); };
+	auto u32 = [&](std::string &o, unsigned long v) { u16(o, (unsigned)(v & 0xFFFF)); u16(o, (unsigned)(v >> 16 & 0xFFFF)); };
+	for (const auto &part : parts)
+	{
+		const std::string &bytes = *part.second, &packed = bytes;
+		const unsigned long crc = crc32(0, (const Bytef *)bytes.data(), (uInt)bytes.size());
+		const size_t local = zip.size();
+		const unsigned nlen = (unsigned)strlen(part.first);
+		/* the local header, then the part; the central directory's entry */
+		u32(zip, 0x04034b50); u16(zip, 10); u16(zip, 0); u16(zip, 0); u16(zip, 0); u16(zip, 0x21);
+		u32(zip, crc); u32(zip, packed.size()); u32(zip, bytes.size()); u16(zip, nlen); u16(zip, 0);
+		zip += part.first;
+		zip += packed;
+		u32(central, 0x02014b50); u16(central, 10); u16(central, 10); u16(central, 0); u16(central, 0); u16(central, 0); u16(central, 0x21);
+		u32(central, crc); u32(central, packed.size()); u32(central, bytes.size()); u16(central, nlen);
+		u16(central, 0); u16(central, 0); u16(central, 0); u16(central, 0); u32(central, 0); u32(central, local);
+		central += part.first;
+	}
+	const size_t at = zip.size();
+	zip += central;
+	u32(zip, 0x06054b50); u16(zip, 0); u16(zip, 0); u16(zip, 2); u16(zip, 2);
+	u32(zip, central.size()); u32(zip, at); u16(zip, 0);
+	const std::string writing = path + ".writing";
+	FILE *f = fopen(writing.c_str(), "wb");
+	if (!f) return false;
+	const bool wrote = fwrite(zip.data(), 1, zip.size(), f) == zip.size();
+	if (fclose(f) != 0 || !wrote || rename(writing.c_str(), path.c_str()) != 0)
+	{
+		remove(writing.c_str());
+		return false;
+	}
+	return true;
+}
+
 /* "version" at a JSON object's top level (build.json's, written by build-package.sh) */
 std::string top_string(const std::string &json, const char *key)
 {
@@ -263,7 +305,8 @@ int main(int argc, char **argv)
 	struct lmpi_project project = { title ? title : stem.c_str(), base.c_str(), "DSDA-Doom", core_version.c_str(), core_sha1.c_str() };
 	struct lmpi_summary sum;
 	char err[1024];
-	char *json = lmpi_import(demo.data(), demo.size(), &o, info ? nullptr : &project, &sum, err, sizeof err);
+	char *lines = nullptr;
+	char *json = lmpi_import(demo.data(), demo.size(), &o, info ? nullptr : &project, &lines, &sum, err, sizeof err);
 	if (!json)
 	{
 		fprintf(stderr, "%s: %s\n", demo_path, err);
@@ -287,14 +330,14 @@ int main(int argc, char **argv)
 		return 0;
 	}
 	std::string path = out ? out : std::string(demo_path).substr(0, std::string(demo_path).size() - (base.size() - stem.size())) + ".chimeraProject";
-	FILE *f = fopen(path.c_str(), "wb");
-	if (!f || fputs(json, f) < 0 || fclose(f) != 0)
+	const bool wrote = write_project(path, json, lines ? lines : "");
+	free(json);
+	free(lines);
+	if (!wrote)
 	{
 		fprintf(stderr, "%s: cannot be written\n", path.c_str());
-		free(json);
 		return 1;
 	}
 	fprintf(stderr, "  wrote %s\n", path.c_str());
-	free(json);
 	return 0;
 }

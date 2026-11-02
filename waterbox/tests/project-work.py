@@ -11,6 +11,7 @@ import json
 import os
 import shutil
 import sys
+import zipfile
 
 
 def sha1(path):
@@ -22,7 +23,11 @@ def main():
     if len(sys.argv) < 5:
         sys.exit(__doc__)
     project, work, wad, folders = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:]
-    p = json.load(open(project))
+    # a project is a zip (Chimera's since 2026-11-02): project.json, and the
+    # input's entries a line each in input.input
+    with zipfile.ZipFile(project) as z:
+        p = json.loads(z.read("project.json"))
+        entries = z.read("input.input").decode("utf-8").splitlines()
     by_sha1 = {}
     for d in folders:
         paths = [d] if os.path.isfile(d) else [os.path.join(d, f) for f in sorted(os.listdir(d))]
@@ -43,13 +48,13 @@ def main():
     shutil.copy(wad, os.path.join(work, "dsda-doom.wad"))
     json.dump(p["settings"], open(os.path.join(work, "settings"), "w"))
     json.dump({"pwad": names}, open(os.path.join(work, "slots"), "w"))
-    # the project's "inputs" (Chimera's form since 2026-10-28) as the movie
-    # text the harness plays: its key, the groups joined back, and the entries
+    # the project's "inputs" and entries as the movie text the harness plays:
+    # its key, the groups joined back, and the entries
     inputs = p["inputs"]
     key = "".join("#" + "".join(name + "|" for name in group) for group in inputs["columns"])
     with open(os.path.join(work, "movie.txt"), "w") as f:
-        f.write("[Input]\nLogKey:" + key + "\n" + "".join(e + "\n" for e in inputs["entries"]) + "[/Input]\n")
-    print(len(inputs["entries"]))
+        f.write("[Input]\nLogKey:" + key + "\n" + "".join(e + "\n" for e in entries) + "[/Input]\n")
+    print(len(entries))
 
 
 if __name__ == "__main__":

@@ -338,8 +338,9 @@ TOOLS = [collections.OrderedDict([
                 "holds its own flags."))]),
     ]),
     ("outputs", [
+        # a project: written as its two parts, project.json and project.input, which Chimera makes into the file
         collections.OrderedDict([("name", "project"), ("label", text("import.project", "Project")), ("extension", "chimeraProject"),
-                                 ("nameFrom", "demo")]),
+                                 ("nameFrom", "demo"), ("project", True)]),
     ]),
 ])]
 

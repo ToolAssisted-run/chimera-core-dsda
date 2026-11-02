@@ -127,6 +127,9 @@ ECL_EXPORT uint64_t GetCycleCount(void) { return dsdadrv_clock(); }
  *    "options":{"noPwads":...,"longtics":...,"respawn":...,"fast":...,"nomonsters":...},
  *    "inputs":{"demo":"<name>","iwad":"<name>","pwad.0":"<name>",...},
  *    "outputs":{"project":"<name>"}}
+ * The output is declared a project, so its two parts are written,
+ * project.json and project.input (the entries, a line each), and Chimera
+ * makes them into the project's file.
  * The demo is mounted as "demo", the IWAD as "iwad", the PWADs and patches
  * as pwad.0, pwad.1, ... in the order picked; the importer asks for each by
  * the name the person's file has (the IWAD's, the footer's), whatever its
@@ -326,13 +329,18 @@ ECL_EXPORT const char *RunTool(void)
 	struct lmpi_summary summary;
 	memset(&summary, 0, sizeof summary);
 	char err[1024];
-	char *json = lmpi_import(demo, size, &o, &project, &summary, err, sizeof err);
+	char *lines = NULL;
+	char *json = lmpi_import(demo, size, &o, &project, &lines, &summary, err, sizeof err);
 	if (!json) return tool_answer("refused", err);
-	FILE *out = fopen("project", "wb");
-	const size_t len = strlen(json);
-	int wrote = out && fwrite(json, 1, len, out) == len;
+	/* the output is declared a project: its two parts, which Chimera makes
+	 * into the project's file */
+	FILE *out = fopen("project.json", "wb"), *in = fopen("project.input", "wb");
+	const size_t len = strlen(json), nlines = lines ? strlen(lines) : 0;
+	int wrote = out && in && fwrite(json, 1, len, out) == len && fwrite(lines ? lines : "", 1, nlines, in) == nlines;
 	if (out && fclose(out) != 0) wrote = 0;
+	if (in && fclose(in) != 0) wrote = 0;
 	free(json);
+	free(lines);
 	if (!wrote) return tool_answer("refused", "error.tool.not_written");
 
 	/* what was made: the demo's format and length */

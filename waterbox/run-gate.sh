@@ -322,7 +322,8 @@ fcase cl11-flags "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"11\", \"fa
 fcase cl3-nomonsters "{\"game\": \"freedoom1\", \"compatibilityLevel\": \"3\", \"noMonsters\": true, \"initialEpisode\": 2, \"initialMap\": 3, \"skillLevel\": \"5\", $st}" "" "" freedoom1
 fcase rooms-cl9 "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"9\", $st}" "" "$work/files/rooms.wad"
 fcase rooms-cl21-solonet "{\"game\": \"freedoom2\", \"compatibilityLevel\": \"21\", \"soloNet\": true, \"coopSpawns\": true}" "" "$work/files/rooms.wad"
-if grep -q '"soloNet": true' "$fmt/rooms-cl21-solonet/i/p.chimeraProject" && grep -q '"coopSpawns": true' "$fmt/rooms-cl21-solonet/i/p.chimeraProject"; then
+if python3 -c 'import json, sys, zipfile; s = json.loads(zipfile.ZipFile(sys.argv[1]).read("project.json"))["settings"]; sys.exit(0 if s.get("soloNet") is True and s.get("coopSpawns") is True else 1)' \
+	"$fmt/rooms-cl21-solonet/i/p.chimeraProject" 2> /dev/null; then
 	pass "formats: the footer's -solo-net and -coop_spawns are the imported project's soloNet and coopSpawns"
 else
 	fail "formats: the footer's -solo-net and -coop_spawns did not reach the project"
@@ -384,7 +385,8 @@ tool_request() {
 		"$tsha" "$tver" "$topts" "$tinputs" > "$td/tool"
 }
 # export_check <name> <demo> <tool options JSON> <command-line arguments> <iwad>:
-# the project the tool writes (natively) is the command line's, byte for byte
+# the project the tool writes (natively, as its two parts) is the command
+# line's (a zip of the same two), byte for byte
 export_check() {
 	n="$1"; lmp="$2"; opts="$3"; cli="$4"; iw="$5"
 	d="$work/export/$n"
@@ -392,7 +394,8 @@ export_check() {
 	tool_request "$d/native" "$lmp" "$opts" "$iw"
 	"$native" "$d/native" --tool > "$d/native.json" 2> "$d/native.err" || true
 	"$importer" "$lmp" $cli -o "$d/cli.chimeraProject" > "$d/cli.out" 2> "$d/cli.err" || true
-	if grep -q '^{"done": "import.done' "$d/native.json" && [ -s "$d/native/project" ] && cmp -s "$d/native/project" "$d/cli.chimeraProject"; then
+	if grep -q '^{"done": "import.done' "$d/native.json" && [ -s "$d/native/project.json" ] \
+		&& python3 "$tests/same-parts.py" "$d/cli.chimeraProject" "$d/native/project.json" "$d/native/project.input"; then
 		pass "export: $n - the tool's project = the command line's ($(cut -c1-80 "$d/native.json"))"
 	else
 		fail "export: $n - the tool's project and the command line's differ ($(head -c 200 "$d/native.json"))"
@@ -566,8 +569,8 @@ if [ -n "$chimera_run" ]; then
 	"$native" "$ed/tool/native" --tool > "$ed/tool/native.json" 2>&1 || true
 	"$chimera_run" --run-tool import_demo "$work/package/dsda.chimeraCore" --input demo="$work/demo2-1/freedoom2-DEMO1.lmp" \
 		--input iwad="$fd2" --output project="$ed/tool/sandbox.chimeraProject" --tool-options '{"noPwads":true}' > "$ed/tool/sandbox.json" 2>&1 || true
-	if grep -q '^{"done": "The project is written' "$ed/tool/sandbox.json" && cmp -s "$ed/tool/native/project" "$ed/tool/sandbox.chimeraProject" \
-		&& grep -q "\"$psha\"" "$ed/tool/sandbox.chimeraProject"; then
+	if grep -q '^{"done": "The project is written' "$ed/tool/sandbox.json" \
+		&& python3 "$tests/same-parts.py" --as-chimera "$ed/tool/sandbox.chimeraProject" "$ed/tool/native/project.json" "$ed/tool/native/project.input" "$psha"; then
 		pass "engine: the tool in Chimera's sandbox writes the native tool's project, pinned to the package ($(cut -c1-90 "$ed/tool/sandbox.json"))"
 	else
 		fail "engine: the tool in Chimera's sandbox ($(head -c 200 "$ed/tool/sandbox.json"))"
