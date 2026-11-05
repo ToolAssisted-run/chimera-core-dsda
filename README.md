@@ -193,7 +193,7 @@ savestate every frame.
 ## Using it in Chimera
 
 Chimera ships no cores and downloads nothing. Download the core's `.chimeraCore` package from this repository's
-[Releases](https://github.com/ToolAssisted-run/chimera-core-dsda/releases) page (a rolling `dev` build, dated
+[Releases](https://github.com/ToolAssisted-run/chimera-core-dsda/releases) page (dated
 `nightly-YYYY-MM-DD` builds), or build it, and put it in the `cores` folder beside Chimera's program (or the folder
 chosen in Tools > Core Manager... > Change folder...). The same file works on Linux and on Windows. No IWAD is in the
 package: a project brings its game's IWAD as firmware (the table above).
