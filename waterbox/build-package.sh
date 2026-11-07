@@ -113,7 +113,7 @@ json.dump({
                "origin": git("config", "--get", "remote.origin.url", default=""),
                "dirty": "-dirty" in "$core_version"},
     "toolchain": {"compiler": "gcc $gccver", "binutils": "$binutils_version",
-                  "target": "x86_64-linux-musl", "musl": "$musl_version"},
+                  "target": "$(uname -m)-linux-musl", "musl": "$musl_version"},
     "guestKit": {"name": "miniBox", "commit": "$guest_kit"},
     "upstream": {"name": "dsda-doom", "pin": "$dsda_pin"},
     "builtOn": "$os_id",
